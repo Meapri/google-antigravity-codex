@@ -8,7 +8,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from . import auth, client
+from . import auth, client, response as response_schema
 
 DEFAULT_MODEL = "gemini-3.5-flash-high"
 MIN_REASONING_MODEL_OUTPUT_TOKENS = 256
@@ -193,17 +193,25 @@ def run_chat(arguments: Dict[str, Any]) -> Dict[str, Any]:
         request=request,
         use_model_aliases=True,
         timeout=float(arguments.get("timeout_sec") or 180.0),
+        max_retries=int(arguments.get("retry_count") if arguments.get("retry_count") is not None else 1),
+        retry_sleep_cap_seconds=float(arguments.get("retry_sleep_cap_sec") or 8.0),
     )
     extracted = extract_response_text(payload)
+    diagnostics = payload.get("_antigravity_diagnostics") if isinstance(payload.get("_antigravity_diagnostics"), dict) else {}
     return {
         "text": extracted["text"],
         "model": model,
-        "provider": "google-antigravity",
         "created": int(time.time()),
         "finish_reason": extracted["finish_reason"],
         "usage": extracted.get("usage", {}),
         "reasoning": extracted.get("reasoning", ""),
         "tool_calls": extracted.get("tool_calls", []),
+        **response_schema.standard_fields(
+            model=model,
+            usage=extracted.get("usage", {}),
+            warnings=[] if extracted["text"] else ["empty_model_text"],
+            diagnostics=diagnostics,
+        ),
     }
 
 

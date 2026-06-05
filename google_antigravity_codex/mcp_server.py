@@ -6,10 +6,10 @@ import json
 import sys
 from typing import Any, Callable, Dict, List
 
-from . import auth, chat, client, grounding, image, models, quota, release, writing
+from . import auth, chat, client, grounding, image, models, quota, release, routing, writing
 
 SERVER_NAME = "google-antigravity-codex"
-SERVER_VERSION = "0.2.4+codex.20260605172614"
+SERVER_VERSION = "0.3.0+codex.20260605174454"
 
 
 def _schema_auth_empty() -> Dict[str, Any]:
@@ -28,6 +28,8 @@ CHAT_SCHEMA: Dict[str, Any] = {
         "max_tokens": {"type": "integer", "minimum": 1},
         "grounding": {"type": "string", "enum": ["off", "auto", "always"], "default": "off"},
         "timeout_sec": {"type": "integer", "minimum": 20, "maximum": 600},
+        "retry_count": {"type": "integer", "minimum": 0, "maximum": 5, "default": 1},
+        "retry_sleep_cap_sec": {"type": "number", "minimum": 0, "maximum": 30, "default": 8},
     },
     "additionalProperties": False,
 }
@@ -42,6 +44,8 @@ GROUNDING_SCHEMA: Dict[str, Any] = {
         "language": {"type": "string", "default": "ko"},
         "resolve_sources": {"type": "boolean", "default": True},
         "timeout_sec": {"type": "integer", "minimum": 20, "maximum": 600},
+        "retry_count": {"type": "integer", "minimum": 0, "maximum": 5, "default": 1},
+        "retry_sleep_cap_sec": {"type": "number", "minimum": 0, "maximum": 30, "default": 8},
     },
     "required": ["query"],
     "additionalProperties": False,
@@ -55,6 +59,8 @@ IMAGE_SCHEMA: Dict[str, Any] = {
         "aspect_ratio": {"type": "string", "enum": ["landscape", "square", "portrait"], "default": "landscape"},
         "image_size": {"type": "string", "enum": ["512", "1K", "2K", "4K", "1024", "2048", "4096"]},
         "timeout_sec": {"type": "integer", "minimum": 20, "maximum": 600},
+        "retry_count": {"type": "integer", "minimum": 0, "maximum": 5, "default": 1},
+        "retry_sleep_cap_sec": {"type": "number", "minimum": 0, "maximum": 30, "default": 8},
     },
     "required": ["prompt"],
     "additionalProperties": False,
@@ -98,6 +104,8 @@ WRITING_SCHEMA: Dict[str, Any] = {
         "temperature": {"type": "number"},
         "max_tokens": {"type": "integer", "minimum": 1},
         "timeout_sec": {"type": "integer", "minimum": 20, "maximum": 600},
+        "retry_count": {"type": "integer", "minimum": 0, "maximum": 5, "default": 1},
+        "retry_sleep_cap_sec": {"type": "number", "minimum": 0, "maximum": 30, "default": 8},
     },
     "additionalProperties": False,
 }
@@ -139,6 +147,23 @@ FINISH_LOGIN_SCHEMA: Dict[str, Any] = {
 LOGIN_URL_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "properties": {"force": {"type": "boolean", "default": False}},
+    "additionalProperties": False,
+}
+
+ROUTE_MODEL_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "task": {
+            "type": "string",
+            "enum": ["chat", "code", "fast", "grounded-search", "search", "writing", "release", "image"],
+            "default": "chat",
+        },
+        "intent": {"type": "string"},
+        "preferred_model": {"type": "string"},
+        "speed": {"type": "string", "enum": ["balanced", "fast", "low-latency", "quality"], "default": "balanced"},
+        "grounding": {"type": "string", "enum": ["off", "auto", "always", "required"]},
+        "image": {"type": "boolean"},
+    },
     "additionalProperties": False,
 }
 
@@ -194,6 +219,11 @@ def tool_definitions() -> List[Dict[str, Any]]:
             "name": "google_antigravity_list_models",
             "description": "List text and image models visible to Google Antigravity.",
             "inputSchema": _schema_auth_empty(),
+        },
+        {
+            "name": "google_antigravity_route_model",
+            "description": "Recommend an Antigravity model and MCP tool for a task.",
+            "inputSchema": ROUTE_MODEL_SCHEMA,
         },
         {
             "name": "google_antigravity_quota_status",
@@ -269,6 +299,7 @@ def dispatch_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         "google_antigravity_release_snapshot": release.release_snapshot,
         "google_antigravity_release_draft": release.release_draft,
         "google_antigravity_list_models": models.list_models,
+        "google_antigravity_route_model": routing.route_model,
         "google_antigravity_quota_status": quota.quota_status,
     }
     if name not in table:

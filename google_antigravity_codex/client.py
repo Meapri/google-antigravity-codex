@@ -218,6 +218,18 @@ def post_json(url: str, body: Dict[str, Any], headers: Dict[str, str], *, timeou
         raise AntigravityError(f"Antigravity network error: {exc}", code="antigravity_network_error") from exc
 
 
+def should_retry_error(exc: AntigravityError) -> bool:
+    if exc.code in {"antigravity_network_error", "antigravity_rate_limited", "antigravity_capacity_exhausted"}:
+        return True
+    return exc.status_code in {429, 500, 502, 503, 504}
+
+
+def retry_delay(exc: AntigravityError, attempt_index: int, *, cap_seconds: float = 8.0) -> float:
+    if exc.retry_after is not None:
+        return max(0.0, min(float(exc.retry_after), cap_seconds))
+    return max(0.0, min(0.5 * (2 ** max(0, attempt_index - 1)), cap_seconds))
+
+
 def _paid_tier(raw: Dict[str, Any]) -> Tuple[str, str]:
     paid = raw.get("paidTier") or raw.get("paid_tier")
     if not isinstance(paid, dict):
@@ -312,6 +324,8 @@ def submit_generate_content(
     request: Dict[str, Any],
     use_model_aliases: bool = True,
     timeout: float = 180.0,
+    max_retries: int = 1,
+    retry_sleep_cap_seconds: float = 8.0,
 ) -> Dict[str, Any]:
     ctx = ensure_project_context(access_token, model=model)
     if not ctx.project_id:
@@ -320,6 +334,7 @@ def submit_generate_content(
     headers = antigravity_headers(access_token=access_token, refresh_version=True)
     last_error: Optional[AntigravityError] = None
     retry_statuses = {400, 404, 429, 500, 502, 503, 504}
+    attempts_log: List[Dict[str, Any]] = []
     for candidate in candidates:
         for use_credits in credit_attempts(ctx):
             body = wrap_request(
@@ -328,17 +343,45 @@ def submit_generate_content(
                 request=request,
                 use_google_one_ai_credits=use_credits,
             )
-            try:
-                return post_json(
-                    f"{ANTIGRAVITY_ENDPOINT_PROD}/v1internal:generateContent",
-                    body,
-                    headers,
-                    timeout=timeout,
-                )
-            except AntigravityError as exc:
-                last_error = exc
-                if exc.status_code not in retry_statuses:
-                    raise
+            for attempt in range(max(0, int(max_retries)) + 1):
+                try:
+                    payload = post_json(
+                        f"{ANTIGRAVITY_ENDPOINT_PROD}/v1internal:generateContent",
+                        body,
+                        headers,
+                        timeout=timeout,
+                    )
+                    payload["_antigravity_diagnostics"] = {
+                        "selected_model": candidate,
+                        "requested_model": normalize_model(model),
+                        "used_google_one_ai_credits": use_credits,
+                        "attempt_count": len(attempts_log) + 1,
+                        "retry_count": sum(1 for item in attempts_log if item.get("retried")),
+                        "attempts": attempts_log,
+                    }
+                    return payload
+                except AntigravityError as exc:
+                    last_error = exc
+                    can_retry_same = attempt < max(0, int(max_retries)) and should_retry_error(exc)
+                    attempts_log.append(
+                        {
+                            "model": candidate,
+                            "used_google_one_ai_credits": use_credits,
+                            "attempt": attempt + 1,
+                            "status_code": exc.status_code,
+                            "error_type": exc.code,
+                            "retry_after": exc.retry_after,
+                            "retried": can_retry_same,
+                        }
+                    )
+                    if can_retry_same:
+                        delay = retry_delay(exc, attempt + 1, cap_seconds=retry_sleep_cap_seconds)
+                        if delay > 0:
+                            time.sleep(delay)
+                        continue
+                    if exc.status_code not in retry_statuses:
+                        raise
+                    break
     raise last_error or AntigravityError("Antigravity request failed.", code="request_failed")
 
 

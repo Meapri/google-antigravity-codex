@@ -31,10 +31,15 @@ Search grounding directly.
 Do not fall back to generic web search as the primary route when this tool is
 available and the user expects Google-grounded source checks.
 
+Use `google_antigravity_route_model` first only when the user asks which model
+should handle a source-backed task.
+
 ## Answer Handling
 
 Treat the tool output as evidence, not text to copy blindly. Codex remains
 responsible for uncertainty, synthesis, source choice, and final wording. Prefer
 `structuredContent.sources[].resolved_url` over raw redirect URLs when citing.
+Use `structuredContent.evidence[]` to map extracted claims back to source URLs
+when available.
 If `quality_signals.needs_manual_source_check` is true, say the evidence is thin
 instead of overstating confidence.

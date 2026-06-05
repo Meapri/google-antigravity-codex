@@ -19,6 +19,9 @@ Use `google_antigravity_write` for:
 If a request mixes code and prose, implement or review code in Codex, then route
 the public-facing prose artifact through `google_antigravity_write`.
 
+Use `google_antigravity_route_model` when prose quality, speed, or fallback
+model choice matters before calling `google_antigravity_write`.
+
 ## Tool Shape
 
 Preferred MCP arguments:
@@ -32,6 +35,7 @@ Preferred MCP arguments:
   "audience": "the intended reader",
   "project_context": "auto",
   "output_mode": "final",
+  "retry_count": 1,
   "source_text": "Text to improve"
 }
 ```

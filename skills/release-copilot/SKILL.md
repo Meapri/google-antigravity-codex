@@ -34,6 +34,9 @@ notes, changelog entry, or release summary. Keep `polish` false for deterministi
 drafting; set `polish` true only when the user wants public prose polished
 through Antigravity.
 
+Use `google_antigravity_route_model` before polished release prose when the user
+asks for model choice or when a capacity fallback would be useful.
+
 Example:
 
 ```json

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from . import auth, client, image
+from . import auth, client, image, response
 
 
 def list_models(_: Dict[str, Any] | None = None) -> Dict[str, Any]:
@@ -24,5 +24,10 @@ def list_models(_: Dict[str, Any] | None = None) -> Dict[str, Any]:
         text_models = client.static_model_catalog()
         image_models = image.list_models()
         source = "static_fallback"
-    return {"text_models": text_models, "image_models": image_models, "source": source}
-
+    return {
+        "text": f"Listed {len(text_models)} text models and {len(image_models)} image models.",
+        "text_models": text_models,
+        "image_models": image_models,
+        "source": source,
+        **response.standard_fields(warnings=[] if source != "static_fallback" else ["model_list_static_fallback"]),
+    }

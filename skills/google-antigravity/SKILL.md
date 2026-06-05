@@ -22,6 +22,8 @@ available.
 - Use `google_antigravity_auth_status` before assuming auth is ready.
 - Use `google_antigravity_login_url` and `google_antigravity_finish_login` for
   user-mediated OAuth setup.
+- Use `google_antigravity_route_model` when the task type is clear but the best
+  model/tool choice is not.
 - Use `google_grounded_search` for current facts, latest information, source
   checks, or verification-heavy questions.
 - Use `google_antigravity_generate_image` for image requests that should stay
@@ -34,6 +36,14 @@ available.
   changelog entries, release notes, and local git release context.
 - Use `google_antigravity_quota_status` when quota, plan, or paid-tier routing
   matters.
+
+## Response Handling
+
+Prefer `structuredContent.text` for natural-language output, `sources` and
+`evidence` for grounded answers, and `path` for generated images. Treat
+`warnings` and `diagnostics` as operational signals. If `retry_count` is
+available on a long request, keep it low unless the user explicitly wants a
+longer wait.
 
 When a tool returns `isError: true`, report the specific auth or provider error
 without inventing a workaround.

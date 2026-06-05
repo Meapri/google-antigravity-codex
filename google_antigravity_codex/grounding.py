@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 from typing import Any, Dict, List
 
-from . import chat
+from . import chat, response as response_schema
 
 URL_RE = re.compile(r"https?://[^\s)>\]}\"']+")
 TRAILING_URL_CHARS = ".,;:*!?_~`"
@@ -114,6 +114,27 @@ def extract_numeric_claims(text: str) -> List[str]:
     return claims[:40]
 
 
+def build_evidence(answer: str, sources: List[Dict[str, Any]], claims: List[str]) -> List[Dict[str, Any]]:
+    official_urls = [str(item.get("resolved_url") or item.get("url")) for item in sources if item.get("source_type") == "official"]
+    fallback_urls = [str(item.get("resolved_url") or item.get("url")) for item in sources]
+    urls = official_urls or fallback_urls
+    evidence: List[Dict[str, Any]] = []
+    for claim in claims[:12]:
+        evidence.append({"claim": claim, "source_urls": urls[:3], "confidence": "needs_review"})
+    if not evidence and answer and urls:
+        evidence.append({"claim": answer[:240], "source_urls": urls[:3], "confidence": "grounded"})
+    return evidence
+
+
+def source_summary(sources: List[Dict[str, Any]]) -> str:
+    lines = []
+    for idx, item in enumerate(sources[:10], start=1):
+        url = item.get("resolved_url") or item.get("url") or ""
+        kind = item.get("source_type") or "unknown"
+        lines.append(f"{idx}. [{kind}] {url}")
+    return "\n".join(lines)
+
+
 def build_prompt(arguments: Dict[str, Any]) -> str:
     query = str(arguments.get("query") or "").strip()
     if not query:
@@ -134,15 +155,17 @@ def build_prompt(arguments: Dict[str, Any]) -> str:
 def run_grounded_search(arguments: Dict[str, Any]) -> Dict[str, Any]:
     model = str(arguments.get("model") or chat.DEFAULT_MODEL).strip() or chat.DEFAULT_MODEL
     prompt = build_prompt(arguments)
-    response = chat.run_chat(
+    chat_response = chat.run_chat(
         {
             "prompt": prompt,
             "model": model,
             "grounding": "always",
             "timeout_sec": arguments.get("timeout_sec") or 180,
+            "retry_count": arguments.get("retry_count", 1),
+            "retry_sleep_cap_sec": arguments.get("retry_sleep_cap_sec", 8),
         }
     )
-    answer = response.get("text", "")
+    answer = chat_response.get("text", "")
     resolve_sources = bool(arguments.get("resolve_sources", True))
     sources = [
         resolve_url(url) if resolve_sources else {
@@ -157,19 +180,33 @@ def run_grounded_search(arguments: Dict[str, Any]) -> Dict[str, Any]:
     ]
     official_count = sum(1 for item in sources if item.get("source_type") == "official")
     unresolved_redirect_count = sum(1 for item in sources if item.get("source_type") == "grounding_redirect")
+    claims = extract_numeric_claims(answer)
+    quality = {
+        "source_count": len(sources),
+        "official_source_count": official_count,
+        "unresolved_redirect_count": unresolved_redirect_count,
+        "needs_manual_source_check": unresolved_redirect_count > 0 or official_count == 0,
+    }
+    warnings = []
+    if not answer:
+        warnings.append("empty_grounded_answer")
+    if quality["needs_manual_source_check"]:
+        warnings.append("needs_manual_source_check")
     return {
         "text": answer,
         "answer": answer,
         "sources": sources,
-        "numeric_claims": extract_numeric_claims(answer),
-        "quality_signals": {
-            "source_count": len(sources),
-            "official_source_count": official_count,
-            "unresolved_redirect_count": unresolved_redirect_count,
-            "needs_manual_source_check": unresolved_redirect_count > 0 or official_count == 0,
-        },
-        "provider": "google-antigravity",
+        "source_summary": source_summary(sources),
+        "numeric_claims": claims,
+        "evidence": build_evidence(answer, sources, claims),
+        "quality_signals": quality,
         "model": model,
         "grounding": "native_google_search",
-        "usage": response.get("usage", {}),
+        "usage": chat_response.get("usage", {}),
+        **response_schema.standard_fields(
+            model=model,
+            usage=chat_response.get("usage", {}),
+            warnings=warnings,
+            diagnostics=chat_response.get("diagnostics", {}),
+        ),
     }

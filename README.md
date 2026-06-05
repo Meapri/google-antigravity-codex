@@ -167,6 +167,7 @@ Verification:
      `google_antigravity_release_snapshot`,
      `google_antigravity_release_draft`,
      `google_antigravity_list_models`,
+     `google_antigravity_route_model`,
      `google_antigravity_quota_status`.
 3. Run `google_antigravity_auth_status`.
    If not logged in, call `google_antigravity_login_url`, open the returned URL,
@@ -196,7 +197,23 @@ Verification:
 - `google_antigravity_release_snapshot`
 - `google_antigravity_release_draft`
 - `google_antigravity_list_models`
+- `google_antigravity_route_model`
 - `google_antigravity_quota_status`
+
+Most tools return a common MCP-friendly envelope:
+
+- `success`
+- `text`
+- `provider`
+- `backend`
+- `model` when applicable
+- `usage` when reported by the backend
+- `warnings`
+- `diagnostics`
+
+Grounded search also returns `sources`, `source_summary`, `numeric_claims`,
+`evidence`, and `quality_signals`. Image generation returns both `image` and
+`path`, plus `size_bytes` and `mime_type`.
 
 ## Integrated Workflows
 
@@ -205,6 +222,25 @@ Verification:
 Use `google_grounded_search` for current facts, source-backed answers, official
 source checks, and verification-heavy questions. It uses Gemini native
 `google_search` grounding through Antigravity.
+
+For verification-heavy answers, prefer `sources[].resolved_url` and
+`evidence[].source_urls` over raw text alone. If
+`quality_signals.needs_manual_source_check` is true, treat the answer as thin
+evidence.
+
+### Model Routing
+
+Use `google_antigravity_route_model` before calls where task fit matters. It
+returns a recommended model, candidate fallback list, target MCP tool, and an
+arguments template for tasks such as `chat`, `code`, `grounded-search`,
+`writing`, `release`, and `image`.
+
+### Long Requests
+
+Chat, grounded search, writing, and image generation accept `retry_count` and
+`retry_sleep_cap_sec`. Keep retries low for interactive use; increase them only
+when the user is willing to wait through transient capacity or rate-limit
+errors.
 
 ### Writing
 

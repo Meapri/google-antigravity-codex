@@ -62,6 +62,8 @@ def test_chat_uses_grounding_env_default():
         result = chat.run_chat({"prompt": "latest"})
 
     assert result["text"] == "ok"
+    assert result["success"] is True
+    assert result["backend"] == "direct-antigravity-code-assist"
     assert {"google_search": {}} in seen["request"]["tools"]
 
 
@@ -107,6 +109,9 @@ def test_grounded_search_exposes_text_alias():
     assert result["answer"] == "The official site is https://openai.com."
     assert result["text"] == result["answer"]
     assert result["sources"][0]["resolved_url"] == "https://openai.com"
+    assert result["source_summary"]
+    assert result["evidence"][0]["source_urls"]
+    assert result["success"] is True
 
 
 def test_image_request_shape_and_extraction():
@@ -143,3 +148,4 @@ def test_generate_image_exposes_path_alias_and_metadata(tmp_path):
     assert result["text"].startswith("Generated image: ")
     assert result["mime_type"] == "image/png"
     assert result["size_bytes"] > 0
+    assert result["backend"] == "direct-antigravity-code-assist"

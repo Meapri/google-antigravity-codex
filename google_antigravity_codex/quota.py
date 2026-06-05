@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from . import auth, client
+from . import auth, client, response
 
 
 def _bar(fraction: float, width: int = 20) -> str:
@@ -61,4 +61,5 @@ def quota_status(_: Dict[str, Any] | None = None) -> Dict[str, Any]:
             }
             for bucket in buckets
         ],
+        **response.standard_fields(warnings=[] if buckets else ["quota_buckets_empty"]),
     }

@@ -1,7 +1,7 @@
 {
   "name": "google-antigravity-codex",
-  "version": "0.2.4+codex.20260605172614",
-  "description": "Independent Codex plugin and MCP tools for Google Antigravity OAuth, chat, grounded search, writing, release drafting, image generation, model listing, and quota status.",
+  "version": "0.3.0+codex.20260605174454",
+  "description": "Independent Codex plugin and MCP tools for Google Antigravity OAuth, chat, grounded search, writing, release drafting, image generation, model routing, and quota status.",
   "author": {
     "name": "Park Chanwoo",
     "url": "https://github.com/Meapri"
@@ -22,7 +22,7 @@
   "interface": {
     "displayName": "Google Antigravity Codex",
     "shortDescription": "Use Google Antigravity directly from Codex.",
-    "longDescription": "Google Antigravity Codex provides an independent Codex plugin plus MCP stdio server for Antigravity OAuth, chat, native Google Search grounding, writing, release drafting, image generation, model listing, and quota status. It also includes the useful Codex-facing workflows from Google Grounded Search Copilot, Gemini Writing Copilot, and Release Copilot.",
+    "longDescription": "Google Antigravity Codex provides an independent Codex plugin plus MCP stdio server for Antigravity OAuth, chat, native Google Search grounding with evidence, writing, release drafting, image generation, model listing, model routing, retry diagnostics, and quota status. It also includes the useful Codex-facing workflows from Google Grounded Search Copilot, Gemini Writing Copilot, and Release Copilot.",
     "developerName": "Park Chanwoo",
     "category": "Developer Tools",
     "capabilities": [
@@ -33,6 +33,8 @@
       "Release drafting",
       "Image generation",
       "Model listing",
+      "Model routing",
+      "Retry diagnostics",
       "Quota status",
       "MCP"
     ],
@@ -42,7 +44,8 @@
       "Polish this prose with Antigravity.",
       "Draft release notes from the current repo.",
       "Generate an image through Google Antigravity.",
-      "List available Antigravity models."
+      "List available Antigravity models.",
+      "Route this task to the best Antigravity model."
     ]
   },
   "mcpServers": "./.mcp.json"

@@ -10,7 +10,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import urllib.request
 import uuid
 
-from . import auth, client, paths
+from . import auth, client, paths, response
 
 DEFAULT_MODEL = "gemini-3.1-flash-image"
 DEFAULT_ASPECT_RATIO = "landscape"
@@ -241,6 +241,8 @@ def generate_image(arguments: Dict[str, Any]) -> Dict[str, Any]:
         request=request,
         use_model_aliases=False,
         timeout=float(arguments.get("timeout_sec") or 180.0),
+        max_retries=int(arguments.get("retry_count") if arguments.get("retry_count") is not None else 1),
+        retry_sleep_cap_seconds=float(arguments.get("retry_sleep_cap_sec") or 8.0),
     )
     data, kind, extension = extract_image_result(payload)
     if not data:
@@ -260,7 +262,9 @@ def generate_image(arguments: Dict[str, Any]) -> Dict[str, Any]:
         "model": requested,
         "prompt": prompt,
         "aspect_ratio": aspect,
-        "provider": "google-antigravity",
-        "backend": "antigravity-code-assist",
+        **response.standard_fields(
+            model=requested,
+            diagnostics=payload.get("_antigravity_diagnostics") if isinstance(payload.get("_antigravity_diagnostics"), dict) else {},
+        ),
         **({"image_size": image_size} if image_size else {}),
     }

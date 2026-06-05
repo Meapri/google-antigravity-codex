@@ -11,7 +11,7 @@ import subprocess
 import time
 from typing import Any, Dict, List
 
-from . import writing
+from . import response, writing
 
 VERSION_FILE_PATTERNS = (
     ("package.json", re.compile(r'"version"\s*:\s*"([^"]+)"')),
@@ -402,7 +402,11 @@ def render_draft(snapshot: ReleaseSnapshot, arguments: Dict[str, Any]) -> str:
 
 def release_snapshot(arguments: Dict[str, Any]) -> Dict[str, Any]:
     snapshot = collect_snapshot(arguments)
-    return {"text": snapshot_text(snapshot), "snapshot": snapshot_to_dict(snapshot)}
+    return {
+        "text": snapshot_text(snapshot),
+        "snapshot": snapshot_to_dict(snapshot),
+        **response.standard_fields(warnings=[]),
+    }
 
 
 def release_draft(arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -426,6 +430,10 @@ def release_draft(arguments: Dict[str, Any]) -> Dict[str, Any]:
         "draft": draft,
         "polished": polished,
         "snapshot": snapshot_to_dict(snapshot),
+        **response.standard_fields(
+            warnings=(polished or {}).get("warnings", []) if polished else [],
+            diagnostics=(polished or {}).get("diagnostics", {}) if polished else {},
+        ),
     }
 
 

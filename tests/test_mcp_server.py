@@ -18,6 +18,23 @@ def test_initialize_and_tools_list():
     assert "google_antigravity_write" in names
     assert "google_antigravity_release_snapshot" in names
     assert "google_antigravity_release_draft" in names
+    assert "google_antigravity_route_model" in names
+
+
+def test_route_model_tool_schema_and_result():
+    response = mcp_server.handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {"name": "google_antigravity_route_model", "arguments": {"task": "writing"}},
+        }
+    )
+
+    result = response["result"]["structuredContent"]
+    assert result["success"] is True
+    assert result["recommended_model"] == "gemini-3.1-pro-high"
+    assert result["tool"] == "google_antigravity_write"
 
 
 def test_auth_missing_returns_tool_error(tmp_path):

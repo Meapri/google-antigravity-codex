@@ -66,3 +66,35 @@ def test_error_from_response_parses_retry_info():
     assert error.status_code == 429
     assert error.retry_after == 3.5
     assert error.code == "antigravity_rate_limited"
+
+
+def test_submit_generate_content_records_retry_diagnostics():
+    calls = {"count": 0}
+
+    def fake_post_json(url, body, headers, *, timeout):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise client.AntigravityError(
+                "capacity",
+                code="antigravity_capacity_exhausted",
+                status_code=429,
+                retry_after=0,
+            )
+        return {"response": {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}}
+
+    with patch.object(client.auth, "load_credentials", lambda: None), patch.object(
+        client, "ensure_project_context", lambda access_token, model="": client.ProjectContext(project_id="project")
+    ), patch.object(client, "post_json", fake_post_json):
+        payload = client.submit_generate_content(
+            access_token="token",
+            model="gemini-3.5-flash-high",
+            request={"contents": []},
+            max_retries=1,
+            retry_sleep_cap_seconds=0,
+        )
+
+    diagnostics = payload["_antigravity_diagnostics"]
+    assert calls["count"] == 2
+    assert diagnostics["selected_model"] == "gemini-3-flash-agent"
+    assert diagnostics["retry_count"] == 1
+    assert diagnostics["attempts"][0]["retried"] is True

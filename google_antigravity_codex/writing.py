@@ -12,7 +12,7 @@ import re
 import subprocess
 from typing import Any, Dict, List
 
-from . import chat
+from . import chat, response as response_schema
 
 DEFAULT_MODEL = "gemini-3.1-pro-high"
 TASKS = {
@@ -279,7 +279,7 @@ def run_writing(arguments: Dict[str, Any]) -> Dict[str, Any]:
     model = str(
         arguments.get("model") or os.getenv("GOOGLE_ANTIGRAVITY_WRITING_MODEL") or DEFAULT_MODEL
     ).strip()
-    response = chat.run_chat(
+    chat_response = chat.run_chat(
         {
             "prompt": built["prompt"],
             "system": built["system"],
@@ -287,16 +287,23 @@ def run_writing(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "temperature": arguments.get("temperature", 0.35),
             "max_tokens": int(arguments.get("max_tokens") or 4096),
             "timeout_sec": arguments.get("timeout_sec") or 180,
+            "retry_count": arguments.get("retry_count", 1),
+            "retry_sleep_cap_sec": arguments.get("retry_sleep_cap_sec", 8),
         }
     )
-    text = str(response.get("text") or "").strip()
+    text = str(chat_response.get("text") or "").strip()
     return {
         "text": text,
         "task": built["task"],
         "profiles": built["profiles"],
         "model": model,
-        "provider": "google-antigravity",
         "project_context_used": built["project_context_used"],
         "quality_warnings": review_text(text),
-        "usage": response.get("usage", {}),
+        "usage": chat_response.get("usage", {}),
+        **response_schema.standard_fields(
+            model=model,
+            usage=chat_response.get("usage", {}),
+            warnings=review_text(text),
+            diagnostics=chat_response.get("diagnostics", {}),
+        ),
     }
