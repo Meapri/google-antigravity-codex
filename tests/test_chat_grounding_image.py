@@ -96,6 +96,19 @@ def test_grounding_official_domains_can_be_extended():
         assert grounding.classify_source("https://docs.example.com/page") == "official"
 
 
+def test_grounded_search_exposes_text_alias():
+    with patch.object(
+        grounding.chat,
+        "run_chat",
+        lambda args: {"text": "The official site is https://openai.com.", "usage": {"total_tokens": 3}},
+    ):
+        result = grounding.run_grounded_search({"query": "official site", "resolve_sources": False})
+
+    assert result["answer"] == "The official site is https://openai.com."
+    assert result["text"] == result["answer"]
+    assert result["sources"][0]["resolved_url"] == "https://openai.com"
+
+
 def test_image_request_shape_and_extraction():
     request = image.build_image_request(prompt="draw", aspect_ratio="portrait", image_size="2K")
     payload = {"candidates": [{"content": {"parts": [{"inlineData": {"mimeType": "image/png", "data": b64_png()}}]}}]}
@@ -113,3 +126,20 @@ def test_image_model_normalization():
     assert image.normalize_model("google/gemini-3-1-flash-image") == "gemini-3.1-flash-image"
     assert image.normalize_model("nano-banana") == "gemini-3.1-flash-image"
     assert image.resolve_image_size("2048") == "2K"
+
+
+def test_generate_image_exposes_path_alias_and_metadata(tmp_path):
+    payload = {"candidates": [{"content": {"parts": [{"inlineData": {"mimeType": "image/png", "data": b64_png()}}]}}]}
+
+    with patch.object(image.auth, "get_valid_access_token", lambda: "token"), patch.object(
+        image, "available_model_catalog", lambda access_token=None: {"gemini-3.1-flash-image": {}}
+    ), patch.object(image.client, "submit_generate_content", lambda **kwargs: payload), patch.object(
+        image.paths, "images_dir", lambda: tmp_path
+    ):
+        result = image.generate_image({"prompt": "draw", "aspect_ratio": "square", "image_size": "512"})
+
+    assert result["success"] is True
+    assert result["image"] == result["path"]
+    assert result["text"].startswith("Generated image: ")
+    assert result["mime_type"] == "image/png"
+    assert result["size_bytes"] > 0

@@ -158,6 +158,7 @@ def run_grounded_search(arguments: Dict[str, Any]) -> Dict[str, Any]:
     official_count = sum(1 for item in sources if item.get("source_type") == "official")
     unresolved_redirect_count = sum(1 for item in sources if item.get("source_type") == "grounding_redirect")
     return {
+        "text": answer,
         "answer": answer,
         "sources": sources,
         "numeric_claims": extract_numeric_claims(answer),

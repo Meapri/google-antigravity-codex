@@ -249,9 +249,14 @@ def generate_image(arguments: Dict[str, Any]) -> Dict[str, Any]:
         saved = save_url_image(data, prefix=f"google_antigravity_{requested}")
     else:
         saved = save_b64_image(data, prefix=f"google_antigravity_{requested}", extension=extension)
+    mime_type = next((mime for mime, ext in MIME_EXTENSIONS.items() if ext == saved.suffix.removeprefix(".").lower()), "")
     return {
         "success": True,
+        "text": f"Generated image: {saved}",
         "image": str(saved),
+        "path": str(saved),
+        "size_bytes": saved.stat().st_size,
+        "mime_type": mime_type or "application/octet-stream",
         "model": requested,
         "prompt": prompt,
         "aspect_ratio": aspect,
@@ -259,4 +264,3 @@ def generate_image(arguments: Dict[str, Any]) -> Dict[str, Any]:
         "backend": "antigravity-code-assist",
         **({"image_size": image_size} if image_size else {}),
     }
-

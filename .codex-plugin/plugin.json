@@ -1,6 +1,6 @@
 {
   "name": "google-antigravity-codex",
-  "version": "0.2.3+codex.20260605075654",
+  "version": "0.2.4+codex.20260605172614",
   "description": "Independent Codex plugin and MCP tools for Google Antigravity OAuth, chat, grounded search, writing, release drafting, image generation, model listing, and quota status.",
   "author": {
     "name": "Park Chanwoo",
