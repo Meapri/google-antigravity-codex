@@ -1,0 +1,23 @@
+[project]
+name = "google-antigravity-codex"
+version = "0.2.3+codex.20260605075654"
+description = "Independent Codex plugin and MCP tools for Google Antigravity."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [{ name = "Park Chanwoo" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+
+[tool.setuptools.packages.find]
+include = ["google_antigravity_codex*"]
+exclude = ["skills*", "tests*", "docs*", "scripts*"]

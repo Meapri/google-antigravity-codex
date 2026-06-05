@@ -1,0 +1,33 @@
+from __future__ import annotations
+
+from google_antigravity_codex import mcp_server
+
+
+def test_initialize_and_tools_list():
+    init = mcp_server.handle_request({"jsonrpc": "2.0", "id": 1, "method": "initialize"})
+    tools = mcp_server.handle_request({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+
+    assert init["result"]["serverInfo"]["name"] == "google-antigravity-codex"
+    names = {tool["name"] for tool in tools["result"]["tools"]}
+    assert "google_antigravity_chat" in names
+    assert "google_grounded_search" in names
+    assert "google_antigravity_generate_image" in names
+    assert "google_antigravity_write" in names
+    assert "google_antigravity_release_snapshot" in names
+    assert "google_antigravity_release_draft" in names
+
+
+def test_auth_missing_returns_tool_error(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_CREDENTIALS_FILE", str(tmp_path / "missing.json"))
+    response = mcp_server.handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {"name": "google_antigravity_chat", "arguments": {"prompt": "hi"}},
+        }
+    )
+
+    result = response["result"]
+    assert result["isError"] is True
+    assert result["structuredContent"]["error_type"] == "not_logged_in"

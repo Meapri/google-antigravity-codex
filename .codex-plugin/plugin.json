@@ -1,0 +1,49 @@
+{
+  "name": "google-antigravity-codex",
+  "version": "0.2.3+codex.20260605075654",
+  "description": "Independent Codex plugin and MCP tools for Google Antigravity OAuth, chat, grounded search, writing, release drafting, image generation, model listing, and quota status.",
+  "author": {
+    "name": "Park Chanwoo",
+    "url": "https://github.com/Meapri"
+  },
+  "homepage": "https://github.com/Meapri/google-antigravity-codex",
+  "repository": "https://github.com/Meapri/google-antigravity-codex",
+  "license": "MIT",
+  "keywords": [
+    "google",
+    "antigravity",
+    "codex",
+    "mcp",
+    "oauth",
+    "grounding",
+    "image-generation"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Google Antigravity Codex",
+    "shortDescription": "Use Google Antigravity directly from Codex without Hermes.",
+    "longDescription": "Google Antigravity Codex provides an independent Codex plugin plus MCP stdio server for Antigravity OAuth, chat, native Google Search grounding, writing, release drafting, image generation, model listing, and quota status. It absorbs the useful surfaces of Google Grounded Search Copilot, Gemini Writing Copilot, and Release Copilot while avoiding Hermes, agy, Gemini Web cookies, runtime monkey patches, repair hooks, and service restart workflows.",
+    "developerName": "Park Chanwoo",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Antigravity OAuth",
+      "Chat",
+      "Google grounded search",
+      "Writing",
+      "Release drafting",
+      "Image generation",
+      "Model listing",
+      "Quota status",
+      "MCP"
+    ],
+    "defaultPrompt": [
+      "Check Google Antigravity auth status.",
+      "Use Google-grounded search for this current fact.",
+      "Polish this prose with Antigravity.",
+      "Draft release notes from the current repo.",
+      "Generate an image through Google Antigravity.",
+      "List available Antigravity models."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

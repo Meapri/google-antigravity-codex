@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "google-antigravity-codex": {
+      "command": "python3",
+      "args": [
+        "./scripts/google_antigravity_mcp.py"
+      ]
+    }
+  }
+}
