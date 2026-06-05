@@ -228,6 +228,11 @@ For verification-heavy answers, prefer `sources[].resolved_url` and
 `quality_signals.needs_manual_source_check` is true, treat the answer as thin
 evidence.
 
+When Google grounding returns temporary redirect URLs, the resolver follows
+them and falls back to a direct-source retry when a redirect expires or returns
+an error. Set `direct_source_retry` to `false` only when you need the raw
+grounding redirect behavior.
+
 ### Model Routing
 
 Use `google_antigravity_route_model` before calls where task fit matters. It

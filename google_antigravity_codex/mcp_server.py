@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, List
 from . import auth, chat, client, grounding, image, models, quota, release, routing, writing
 
 SERVER_NAME = "google-antigravity-codex"
-SERVER_VERSION = "0.3.0+codex.20260605174454"
+SERVER_VERSION = "0.3.1+codex.20260605184737"
 
 
 def _schema_auth_empty() -> Dict[str, Any]:
@@ -43,6 +43,7 @@ GROUNDING_SCHEMA: Dict[str, Any] = {
         "freshness": {"type": "string", "enum": ["auto", "latest", "today", "week", "month", "official"], "default": "auto"},
         "language": {"type": "string", "default": "ko"},
         "resolve_sources": {"type": "boolean", "default": True},
+        "direct_source_retry": {"type": "boolean", "default": True},
         "timeout_sec": {"type": "integer", "minimum": 20, "maximum": 600},
         "retry_count": {"type": "integer", "minimum": 0, "maximum": 5, "default": 1},
         "retry_sleep_cap_sec": {"type": "number", "minimum": 0, "maximum": 30, "default": 8},

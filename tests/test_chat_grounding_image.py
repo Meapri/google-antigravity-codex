@@ -114,6 +114,28 @@ def test_grounded_search_exposes_text_alias():
     assert result["success"] is True
 
 
+def test_grounded_search_recovers_direct_sources_from_failed_redirect():
+    redirect = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/bad"
+    calls = []
+
+    def fake_run_chat(args):
+        calls.append(args)
+        if len(calls) == 1:
+            return {"text": f"Answer with source {redirect}", "usage": {"total_tokens": 3}}
+        return {"text": "https://nvidianews.nvidia.com/news/nvidia-microsoft-windows-pcs-agents-rtx-spark"}
+
+    with patch.object(grounding.chat, "run_chat", fake_run_chat), patch.object(
+        grounding, "resolve_url_with_curl", lambda url, timeout_sec=8: ""
+    ), patch.object(grounding.urllib.request, "urlopen", side_effect=RuntimeError("404")):
+        result = grounding.run_grounded_search({"query": "rtx spark", "max_sources": 3})
+
+    assert len(calls) == 2
+    assert result["quality_signals"]["unresolved_redirect_count"] == 0
+    assert result["quality_signals"]["needs_manual_source_check"] is False
+    assert result["sources"][0]["resolved_url"] == "https://nvidianews.nvidia.com/news/nvidia-microsoft-windows-pcs-agents-rtx-spark"
+    assert result["sources"][0]["recovered_by"] == "direct_source_retry"
+
+
 def test_image_request_shape_and_extraction():
     request = image.build_image_request(prompt="draw", aspect_ratio="portrait", image_size="2K")
     payload = {"candidates": [{"content": {"parts": [{"inlineData": {"mimeType": "image/png", "data": b64_png()}}]}}]}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import urllib.parse
 import urllib.request
 from typing import Any, Dict, List
@@ -88,8 +89,11 @@ def resolve_url(url: str, *, timeout_sec: int = 8) -> Dict[str, Any]:
         with urllib.request.urlopen(request, timeout=max(1, timeout_sec)) as response:
             final_url = response.geturl()
     except Exception as exc:
-        source["resolution_error"] = str(exc)
-        return source
+        curl_url = resolve_url_with_curl(url, timeout_sec=timeout_sec)
+        if not curl_url:
+            source["resolution_error"] = str(exc)
+            return source
+        final_url = curl_url
     final = urllib.parse.urlparse(final_url)
     source.update(
         {
@@ -101,6 +105,33 @@ def resolve_url(url: str, *, timeout_sec: int = 8) -> Dict[str, Any]:
         }
     )
     return source
+
+
+def resolve_url_with_curl(url: str, *, timeout_sec: int = 8) -> str:
+    try:
+        proc = subprocess.run(
+            [
+                "curl",
+                "-Ls",
+                "-o",
+                "/dev/null",
+                "-w",
+                "%{url_effective}",
+                "--max-time",
+                str(max(1, int(timeout_sec))),
+                url,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=max(2, int(timeout_sec) + 1),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    final_url = (proc.stdout or "").strip()
+    if proc.returncode != 0 or not final_url.startswith(("http://", "https://")):
+        return ""
+    return final_url
 
 
 def extract_numeric_claims(text: str) -> List[str]:
@@ -133,6 +164,63 @@ def source_summary(sources: List[Dict[str, Any]]) -> str:
         kind = item.get("source_type") or "unknown"
         lines.append(f"{idx}. [{kind}] {url}")
     return "\n".join(lines)
+
+
+def _source_key(item: Dict[str, Any]) -> str:
+    return str(item.get("resolved_url") or item.get("url") or "").rstrip("/")
+
+
+def _is_unresolved_grounding_redirect(item: Dict[str, Any]) -> bool:
+    return item.get("source_type") == "grounding_redirect" and not item.get("redirect_resolved")
+
+
+def _direct_source_retry_prompt(query: str, answer: str, max_sources: int, language: str) -> str:
+    return (
+        "Use native Google Search grounding to recover direct public source URLs for this answer. "
+        "Return only canonical https:// URLs from official or publisher pages. Do not return "
+        "vertexaisearch.cloud.google.com, redirect URLs, tracking URLs, or explanations. "
+        f"Return at most {max_sources} URLs, one per line. Language preference: {language}.\n\n"
+        f"Original question:\n{query}\n\nAnswer to support:\n{answer[:4000]}"
+    )
+
+
+def recover_direct_sources(arguments: Dict[str, Any], answer: str, existing: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not any(_is_unresolved_grounding_redirect(item) for item in existing):
+        return existing
+    if arguments.get("direct_source_retry") is False:
+        return existing
+    max_sources = max(1, min(int(arguments.get("max_sources") or 5), 10))
+    retry_response = chat.run_chat(
+        {
+            "prompt": _direct_source_retry_prompt(
+                str(arguments.get("query") or ""),
+                answer,
+                max_sources,
+                str(arguments.get("language") or "ko"),
+            ),
+            "model": str(arguments.get("model") or chat.DEFAULT_MODEL),
+            "grounding": "always",
+            "timeout_sec": arguments.get("timeout_sec") or 180,
+            "retry_count": arguments.get("retry_count", 1),
+            "retry_sleep_cap_sec": arguments.get("retry_sleep_cap_sec", 8),
+        }
+    )
+    direct_sources: List[Dict[str, Any]] = []
+    for url in extract_urls(str(retry_response.get("text") or "")):
+        resolved = resolve_url(url)
+        if resolved.get("source_type") != "grounding_redirect":
+            resolved["recovered_by"] = "direct_source_retry"
+            direct_sources.append(resolved)
+    if not direct_sources:
+        return existing
+    kept = [item for item in existing if not _is_unresolved_grounding_redirect(item)]
+    seen = {_source_key(item) for item in kept}
+    for item in direct_sources:
+        key = _source_key(item)
+        if key and key not in seen:
+            kept.append(item)
+            seen.add(key)
+    return kept[:max_sources]
 
 
 def build_prompt(arguments: Dict[str, Any]) -> str:
@@ -178,6 +266,8 @@ def run_grounded_search(arguments: Dict[str, Any]) -> Dict[str, Any]:
         }
         for url in extract_urls(answer)
     ]
+    if resolve_sources:
+        sources = recover_direct_sources(arguments, answer, sources)
     official_count = sum(1 for item in sources if item.get("source_type") == "official")
     unresolved_redirect_count = sum(1 for item in sources if item.get("source_type") == "grounding_redirect")
     claims = extract_numeric_claims(answer)
