@@ -1,8 +1,7 @@
 """Writing copilot support backed by Antigravity chat.
 
 This module absorbs the useful routing and prompt-building surface from the
-old Gemini Writing Copilot while deliberately avoiding agy, Gemini Web cookies,
-browser credential import, and unrelated credential stores.
+old Gemini Writing Copilot while using this plugin's Antigravity chat path.
 """
 
 from __future__ import annotations

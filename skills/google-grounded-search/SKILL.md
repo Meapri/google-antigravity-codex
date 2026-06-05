@@ -1,6 +1,6 @@
 ---
 name: google-grounded-search
-description: "Default-first Google grounded search route for modern products, companies, models, releases, current facts, source-backed answers, verification, prices, schedules, official-source checks, or anything likely to have changed. Uses this plugin's independent Antigravity OAuth and MCP server, not Hermes."
+description: "Default-first Google grounded search route for modern products, companies, models, releases, current facts, source-backed answers, verification, prices, schedules, official-source checks, or anything likely to have changed. Uses this plugin's Antigravity OAuth and MCP server."
 ---
 
 # Google Grounded Search
@@ -28,8 +28,8 @@ Prefer the `google_grounded_search` MCP tool from `google-antigravity-codex`
 when available. It uses this plugin's OAuth credentials and Gemini native Google
 Search grounding directly.
 
-Never call Hermes, `agy`, DuckDuckGo, or generic web search as the primary route
-when this tool is available and the user expects Google-grounded source checks.
+Do not fall back to generic web search as the primary route when this tool is
+available and the user expects Google-grounded source checks.
 
 ## Answer Handling
 

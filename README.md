@@ -4,9 +4,8 @@ Independent Codex plugin and MCP stdio server for Google Antigravity OAuth,
 chat, native Google-grounded search, writing, release drafting, image
 generation, model listing, and quota status.
 
-This plugin does not depend on Hermes, `agy`, Gemini Web cookies,
-`sitecustomize`, runtime monkey patches, repair hooks, service restarts, or
-installed Hermes tree checks.
+It provides its own Codex-facing plugin surface, MCP tools, OAuth storage,
+grounded-search workflow, writing helper, release helper, and image cache.
 
 It now absorbs the useful Codex-facing surfaces of:
 
@@ -14,9 +13,8 @@ It now absorbs the useful Codex-facing surfaces of:
 - Gemini Writing Copilot
 - Release Copilot
 
-The integrated versions use this plugin's Antigravity OAuth and MCP server
-directly. They do not call the old Hermes provider, `agy --print`, browser
-cookie import, or Gemini API key fallback paths.
+The integrated workflows use this plugin's Antigravity OAuth and MCP server
+directly.
 
 ## Install
 
@@ -117,11 +115,9 @@ model listing, and quota checks.
 Repository: https://github.com/Meapri/google-antigravity-codex
 
 Important boundaries:
-- Do not use Hermes.
-- Do not call `agy --print`.
-- Do not use Gemini API keys, Gemini Web cookies, browser profile import,
-  Chrome extensions, macOS Keychain scraping, runtime monkey patches, repair
-  hooks, or service restarts.
+- Use this repository's Codex plugin and MCP server as the only runtime surface.
+- Do not use API keys, browser profile import, Chrome extension login, macOS
+  Keychain scraping, or unrelated local credential stores.
 - Never print OAuth tokens, refresh tokens, client secrets, authorization
   headers, cookies, or raw credential files.
 
@@ -146,9 +142,9 @@ OAuth setup:
 - Otherwise, ask the user for a Google Antigravity OAuth client id and client
   secret, then write them to
   `~/.config/google-antigravity-codex/oauth_client.json` with mode `0600`.
-- Do not depend on Hermes or `agy` credentials. If the user explicitly asks to
-  migrate from another credential store, copy only the minimum OAuth client or
-  token fields needed and never print their values.
+- If the user explicitly asks to migrate from another credential store, copy
+  only the minimum OAuth client or token fields needed and never print their
+  values.
 
 Verification:
 1. Run in the clone:

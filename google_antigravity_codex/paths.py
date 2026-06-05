@@ -1,8 +1,7 @@
 """Filesystem paths for Google Antigravity Codex.
 
-This module intentionally does not reference Hermes paths. All credentials and
-cache files live under this plugin's own config/cache roots unless the user
-overrides a path through environment variables.
+All credentials and cache files live under this plugin's own config/cache roots
+unless the user overrides a path through environment variables.
 """
 
 from __future__ import annotations
@@ -55,4 +54,3 @@ def ensure_private_parent(path: Path) -> None:
         path.parent.chmod(0o700)
     except OSError:
         pass
-

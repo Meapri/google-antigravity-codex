@@ -21,8 +21,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Google Antigravity Codex",
-    "shortDescription": "Use Google Antigravity directly from Codex without Hermes.",
-    "longDescription": "Google Antigravity Codex provides an independent Codex plugin plus MCP stdio server for Antigravity OAuth, chat, native Google Search grounding, writing, release drafting, image generation, model listing, and quota status. It absorbs the useful surfaces of Google Grounded Search Copilot, Gemini Writing Copilot, and Release Copilot while avoiding Hermes, agy, Gemini Web cookies, runtime monkey patches, repair hooks, and service restart workflows.",
+    "shortDescription": "Use Google Antigravity directly from Codex.",
+    "longDescription": "Google Antigravity Codex provides an independent Codex plugin plus MCP stdio server for Antigravity OAuth, chat, native Google Search grounding, writing, release drafting, image generation, model listing, and quota status. It also includes the useful Codex-facing workflows from Google Grounded Search Copilot, Gemini Writing Copilot, and Release Copilot.",
     "developerName": "Park Chanwoo",
     "category": "Developer Tools",
     "capabilities": [

@@ -1,6 +1,6 @@
 ---
 name: gemini-writing
-description: "Use proactively for prose deliverables: draft, rewrite, polish, translate, summarize, email, announcement, blog, product copy, proposal, docs prose, README text, PR description, release notes, commit or issue summary, and Korean/English tone work. This integrated version uses google_antigravity_write directly and does not call agy or Gemini Web."
+description: "Use proactively for prose deliverables: draft, rewrite, polish, translate, summarize, email, announcement, blog, product copy, proposal, docs prose, README text, PR description, release notes, commit or issue summary, and Korean/English tone work. This integrated version uses google_antigravity_write directly."
 ---
 
 # Gemini Writing
@@ -45,7 +45,6 @@ Built-in profiles are `chanwoo-ko`, `professional-ko`, `github-release`,
 
 ## Boundaries
 
-- Do not call `agy --print`.
-- Do not use Gemini Web cookies, browser credential import, Chrome extension login, or Keychain access.
+- Do not use browser credential import, Chrome extension login, or Keychain access.
 - Do not paste Antigravity output blindly.
 - Codex must verify versions, dates, commands, tests, issue IDs, links, and release claims before publishing.

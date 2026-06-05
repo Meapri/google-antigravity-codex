@@ -1,7 +1,7 @@
 # Security
 
-Google Antigravity Codex is a local Codex plugin. It does not depend on Hermes,
-`agy`, Gemini Web cookies, browser credential import, or macOS Keychain access.
+Google Antigravity Codex is a local Codex plugin with its own OAuth credential
+storage, MCP server, and Antigravity request path.
 
 ## Credentials
 
@@ -33,15 +33,12 @@ or an `oauth_client.json` file:
 
 ## Network Behavior
 
-Requests go to Google OAuth and Antigravity/Code Assist endpoints. The plugin
-does not send requests through Hermes, `agy`, Gemini API key endpoints, or a
-separate repair service.
+Requests go to Google OAuth and Antigravity/Code Assist endpoints.
 
 ## Integrated Helpers
 
 The writing helper sends only the prompt, optional source text, optional local
-project context, and style instructions to Antigravity. It does not read Gemini
-Web cookies or browser profiles.
+project context, and style instructions to Antigravity.
 
 The release helper reads local git metadata, version files, and optional check
 command output from the requested repository. It drafts release artifacts only;

@@ -6,8 +6,7 @@ The default flow is intentionally user-mediated:
 2. The user completes Google OAuth in a browser.
 3. `google_antigravity_finish_login` exchanges the pasted callback URL or code.
 
-No Hermes credential store, `agy` command, browser cookie, or Keychain access is
-used by this module.
+No browser cookie or Keychain access is used by this module.
 """
 
 from __future__ import annotations

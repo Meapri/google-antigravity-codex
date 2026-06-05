@@ -1,6 +1,6 @@
 ---
 name: google-antigravity
-description: "Use when the user asks Codex to use Google Antigravity directly for OAuth status, chat, native Google-grounded search, image generation, model listing, or quota checks. This plugin is independent of Hermes and agy."
+description: "Use when the user asks Codex to use Google Antigravity directly for OAuth status, chat, native Google-grounded search, image generation, model listing, or quota checks."
 ---
 
 # Google Antigravity
@@ -11,8 +11,6 @@ available.
 
 ## Boundaries
 
-- Do not call Hermes.
-- Do not call `agy --print`.
 - Do not use Gemini API keys as a fallback.
 - Do not read browser cookies, macOS Keychain entries, or unrelated credential
   stores.
