@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+from unittest.mock import patch
+
 from google_antigravity_codex import client
 
 
@@ -26,26 +29,25 @@ def test_wrap_request_uses_antigravity_agent_shape():
     assert wrapped["request"] == {"contents": []}
 
 
-def test_antigravity_headers_can_be_version_overridden(monkeypatch):
-    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_VERSION", "2.0.9")
-
-    headers = client.antigravity_headers()
+def test_antigravity_headers_can_be_version_overridden():
+    with patch.dict(os.environ, {"GOOGLE_ANTIGRAVITY_VERSION": "2.0.9"}):
+        headers = client.antigravity_headers()
 
     assert "Antigravity/2.0.9" in headers["User-Agent"]
     assert headers["X-Goog-Api-Client"] == "antigravity-cli/2.0.9"
 
 
-def test_load_code_assist_uses_google_code_assist_metadata(monkeypatch):
+def test_load_code_assist_uses_google_code_assist_metadata():
     seen = {}
 
     def fake_post_json(url, body, headers, *, timeout):
         seen.update({"url": url, "body": body, "headers": headers, "timeout": timeout})
         return {"cloudaicompanionProject": "project", "currentTier": {"id": "standard-tier"}}
 
-    monkeypatch.setattr(client, "post_json", fake_post_json)
-    monkeypatch.setattr(client.auth, "update_project_ids", lambda **kwargs: None)
-
-    ctx = client.load_code_assist("token")
+    with patch.object(client, "post_json", fake_post_json), patch.object(
+        client.auth, "update_project_ids", lambda **kwargs: None
+    ):
+        ctx = client.load_code_assist("token")
 
     assert ctx.project_id == "project"
     assert seen["body"]["metadata"]["pluginType"] == "GEMINI"

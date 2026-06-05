@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from google_antigravity_codex import client, quota
 
 
-def test_quota_status_formats_rest_buckets(monkeypatch):
-    monkeypatch.setattr(quota.auth, "get_valid_access_token", lambda: "token")
-    monkeypatch.setattr(
+def test_quota_status_formats_rest_buckets():
+    with patch.object(quota.auth, "get_valid_access_token", lambda: "token"), patch.object(
         quota.client,
         "ensure_project_context",
         lambda *args, **kwargs: client.ProjectContext(
@@ -15,8 +16,7 @@ def test_quota_status_formats_rest_buckets(monkeypatch):
             paid_tier_name="Google AI Ultra",
             raw={"upgradeSubscriptionUri": "https://example.test/?Email=full@example.com"},
         ),
-    )
-    monkeypatch.setattr(
+    ), patch.object(
         quota.client,
         "retrieve_user_quota",
         lambda *args, **kwargs: [
@@ -27,9 +27,8 @@ def test_quota_status_formats_rest_buckets(monkeypatch):
                 reset_time_iso="2026-06-04T12:00:00Z",
             )
         ],
-    )
-
-    result = quota.quota_status({})
+    ):
+        result = quota.quota_status({})
 
     assert "paidTier: g1-ultra-tier" in result["text"]
     assert "gemini-3-flash-agent" in result["text"]

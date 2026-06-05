@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import os
+from unittest.mock import patch
 
 from google_antigravity_codex import chat, grounding, image
 
@@ -47,19 +49,17 @@ def test_chat_floors_small_generation_limits_for_gemini_pro_agent():
     assert request["generationConfig"]["maxOutputTokens"] == 256
 
 
-def test_chat_uses_grounding_env_default(monkeypatch):
-    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_GROUNDING", "always")
+def test_chat_uses_grounding_env_default():
     seen = {}
-
-    monkeypatch.setattr(chat.auth, "get_valid_access_token", lambda: "token")
 
     def fake_submit_generate_content(**kwargs):
         seen.update(kwargs)
         return {"response": {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}}
 
-    monkeypatch.setattr(chat.client, "submit_generate_content", fake_submit_generate_content)
-
-    result = chat.run_chat({"prompt": "latest"})
+    with patch.dict(os.environ, {"GOOGLE_ANTIGRAVITY_GROUNDING": "always"}), patch.object(
+        chat.auth, "get_valid_access_token", lambda: "token"
+    ), patch.object(chat.client, "submit_generate_content", fake_submit_generate_content):
+        result = chat.run_chat({"prompt": "latest"})
 
     assert result["text"] == "ok"
     assert {"google_search": {}} in seen["request"]["tools"]
@@ -91,10 +91,9 @@ def test_grounding_extracts_sources_and_claims():
     assert source_type == "official"
 
 
-def test_grounding_official_domains_can_be_extended(monkeypatch):
-    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_OFFICIAL_DOMAINS", "example.com")
-
-    assert grounding.classify_source("https://docs.example.com/page") == "official"
+def test_grounding_official_domains_can_be_extended():
+    with patch.dict(os.environ, {"GOOGLE_ANTIGRAVITY_OFFICIAL_DOMAINS": "example.com"}):
+        assert grounding.classify_source("https://docs.example.com/page") == "official"
 
 
 def test_image_request_shape_and_extraction():

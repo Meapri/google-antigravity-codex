@@ -2,23 +2,22 @@ from __future__ import annotations
 
 import json
 import os
+from unittest.mock import patch
 
 from google_antigravity_codex import auth
 
 
-def test_save_load_credentials_uses_private_file(tmp_path, monkeypatch):
+def test_save_load_credentials_uses_private_file(tmp_path):
     path = tmp_path / "credentials.json"
-    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_CREDENTIALS_FILE", str(path))
-
-    creds = auth.Credentials(
-        access_token="access",
-        refresh_token="refresh",
-        expires_at_ms=9999999999999,
-        email="user@example.com",
-    )
-    auth.save_credentials(creds)
-
-    loaded = auth.load_credentials()
+    with patch.dict(os.environ, {"GOOGLE_ANTIGRAVITY_CREDENTIALS_FILE": str(path)}):
+        creds = auth.Credentials(
+            access_token="access",
+            refresh_token="refresh",
+            expires_at_ms=9999999999999,
+            email="user@example.com",
+        )
+        auth.save_credentials(creds)
+        loaded = auth.load_credentials()
 
     assert loaded is not None
     assert loaded.access_token == "access"
@@ -26,11 +25,12 @@ def test_save_load_credentials_uses_private_file(tmp_path, monkeypatch):
     assert oct(path.stat().st_mode & 0o777) == "0o600"
 
 
-def test_oauth_client_loads_from_env(monkeypatch):
-    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_CLIENT_ID", "cid")
-    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_CLIENT_SECRET", "secret")
-
-    client = auth.require_oauth_client()
+def test_oauth_client_loads_from_env():
+    with patch.dict(
+        os.environ,
+        {"GOOGLE_ANTIGRAVITY_CLIENT_ID": "cid", "GOOGLE_ANTIGRAVITY_CLIENT_SECRET": "secret"},
+    ):
+        client = auth.require_oauth_client()
 
     assert client.client_id == "cid"
     assert client.client_secret == "secret"
@@ -43,11 +43,12 @@ def test_extract_authorization_code_validates_state():
     assert auth.extract_authorization_code(url, expected_state="expected") == "abc"
 
 
-def test_auth_status_never_returns_token_values(tmp_path, monkeypatch):
-    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_CREDENTIALS_FILE", str(tmp_path / "credentials.json"))
-    auth.save_credentials(auth.Credentials("access-secret", "refresh-secret", 9999999999999, email="user@example.com"))
-
-    status = auth.auth_status()
+def test_auth_status_never_returns_token_values(tmp_path):
+    with patch.dict(os.environ, {"GOOGLE_ANTIGRAVITY_CREDENTIALS_FILE": str(tmp_path / "credentials.json")}):
+        auth.save_credentials(
+            auth.Credentials("access-secret", "refresh-secret", 9999999999999, email="user@example.com")
+        )
+        status = auth.auth_status()
     serialized = json.dumps(status)
 
     assert status["access_token_present"] is True
@@ -59,18 +60,17 @@ def test_auth_status_never_returns_token_values(tmp_path, monkeypatch):
     assert "user@example.com" not in serialized
 
 
-def test_login_url_existing_session_masks_email(tmp_path, monkeypatch):
-    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_CREDENTIALS_FILE", str(tmp_path / "credentials.json"))
-    auth.save_credentials(
-        auth.Credentials(
-            access_token="access",
-            refresh_token="refresh",
-            expires_at_ms=9999999999999,
-            email="person@example.com",
+def test_login_url_existing_session_masks_email(tmp_path):
+    with patch.dict(os.environ, {"GOOGLE_ANTIGRAVITY_CREDENTIALS_FILE": str(tmp_path / "credentials.json")}):
+        auth.save_credentials(
+            auth.Credentials(
+                access_token="access",
+                refresh_token="refresh",
+                expires_at_ms=9999999999999,
+                email="person@example.com",
+            )
         )
-    )
-
-    result = auth.build_login_url(force=False)
+        result = auth.build_login_url(force=False)
     serialized = json.dumps(result)
 
     assert result["already_logged_in"] is True

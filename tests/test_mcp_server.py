@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+from unittest.mock import patch
+
 from google_antigravity_codex import mcp_server
 
 
@@ -17,16 +20,16 @@ def test_initialize_and_tools_list():
     assert "google_antigravity_release_draft" in names
 
 
-def test_auth_missing_returns_tool_error(tmp_path, monkeypatch):
-    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_CREDENTIALS_FILE", str(tmp_path / "missing.json"))
-    response = mcp_server.handle_request(
-        {
-            "jsonrpc": "2.0",
-            "id": 3,
-            "method": "tools/call",
-            "params": {"name": "google_antigravity_chat", "arguments": {"prompt": "hi"}},
-        }
-    )
+def test_auth_missing_returns_tool_error(tmp_path):
+    with patch.dict(os.environ, {"GOOGLE_ANTIGRAVITY_CREDENTIALS_FILE": str(tmp_path / "missing.json")}):
+        response = mcp_server.handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "google_antigravity_chat", "arguments": {"prompt": "hi"}},
+            }
+        )
 
     result = response["result"]
     assert result["isError"] is True
