@@ -16,6 +16,9 @@ It now absorbs the useful Codex-facing surfaces of:
 The integrated workflows use this plugin's Antigravity OAuth and MCP server
 directly.
 
+It also includes focused Codex skills for coding, code review, model routing,
+doctor checks, image generation, grounded search, writing, and release work.
+
 ## Install
 
 ### Install From GitHub Marketplace Source

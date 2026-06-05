@@ -1,6 +1,6 @@
 {
   "name": "google-antigravity-codex",
-  "version": "0.3.2+codex.20260605185121",
+  "version": "0.4.0+codex.20260605185719",
   "description": "Independent Codex plugin and MCP tools for Google Antigravity OAuth, chat, grounded search, writing, release drafting, image generation, model routing, and quota status.",
   "author": {
     "name": "Park Chanwoo",
@@ -22,18 +22,21 @@
   "interface": {
     "displayName": "Google Antigravity Codex",
     "shortDescription": "Use Google Antigravity directly from Codex.",
-    "longDescription": "Google Antigravity Codex provides an independent Codex plugin plus MCP stdio server for Antigravity OAuth, chat, native Google Search grounding with evidence, writing, release drafting, image generation, model listing, model routing, retry diagnostics, and quota status. It also includes the useful Codex-facing workflows from Google Grounded Search Copilot, Gemini Writing Copilot, and Release Copilot.",
+    "longDescription": "Google Antigravity Codex provides an independent Codex plugin plus MCP stdio server for Antigravity OAuth, chat, native Google Search grounding with evidence, writing, release drafting, image generation, model listing, model routing, retry diagnostics, and quota status. It includes Codex-facing skills for coding, code review, model routing, doctor checks, image generation, grounded search, writing, and releases.",
     "developerName": "Park Chanwoo",
     "category": "Developer Tools",
     "capabilities": [
       "Antigravity OAuth",
       "Chat",
+      "Coding assistance",
+      "Code review",
       "Google grounded search",
       "Writing",
       "Release drafting",
       "Image generation",
       "Model listing",
       "Model routing",
+      "Doctor checks",
       "Retry diagnostics",
       "Quota status",
       "MCP"
@@ -45,7 +48,9 @@
       "Draft release notes from the current repo.",
       "Generate an image through Google Antigravity.",
       "List available Antigravity models.",
-      "Route this task to the best Antigravity model."
+      "Route this task to the best Antigravity model.",
+      "Review this code with Antigravity as a second reviewer.",
+      "Run an Antigravity plugin doctor check."
     ]
   },
   "mcpServers": "./.mcp.json"

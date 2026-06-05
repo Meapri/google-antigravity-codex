@@ -1,6 +1,6 @@
 [project]
 name = "google-antigravity-codex"
-version = "0.3.2+codex.20260605185121"
+version = "0.4.0+codex.20260605185719"
 description = "Independent Codex plugin and MCP tools for Google Antigravity."
 readme = "README.md"
 requires-python = ">=3.9"
