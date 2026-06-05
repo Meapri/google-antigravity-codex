@@ -36,6 +36,8 @@ through Antigravity.
 
 Use `google_antigravity_route_model` before polished release prose when the user
 asks for model choice or when a capacity fallback would be useful.
+Use `google_antigravity_list_models` only when the user asks for a specific
+polishing model or when the default writing model fails.
 
 Example:
 

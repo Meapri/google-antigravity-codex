@@ -21,6 +21,8 @@ the public-facing prose artifact through `google_antigravity_write`.
 
 Use `google_antigravity_route_model` when prose quality, speed, or fallback
 model choice matters before calling `google_antigravity_write`.
+Use `google_antigravity_list_models` first if the user asks for a specific
+Gemini, Claude, or GPT-OSS writing model and availability is uncertain.
 
 ## Tool Shape
 

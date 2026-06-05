@@ -34,6 +34,10 @@ available and the user expects Google-grounded source checks.
 Use `google_antigravity_route_model` first only when the user asks which model
 should handle a source-backed task.
 
+Keep `direct_source_retry` enabled by default so expired Google grounding
+redirects are replaced with direct public source URLs when possible. Disable it
+only when raw redirect behavior is explicitly needed for debugging.
+
 ## Answer Handling
 
 Treat the tool output as evidence, not text to copy blindly. Codex remains

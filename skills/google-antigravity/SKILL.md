@@ -24,6 +24,8 @@ available.
   user-mediated OAuth setup.
 - Use `google_antigravity_route_model` when the task type is clear but the best
   model/tool choice is not.
+- Use `google_antigravity_chat` for direct Antigravity model calls, coding
+  questions, planning, summarization, and non-grounded reasoning tasks.
 - Use `google_grounded_search` for current facts, latest information, source
   checks, or verification-heavy questions.
 - Use `google_antigravity_generate_image` for image requests that should stay
@@ -34,6 +36,8 @@ available.
 - Use `google_antigravity_release_snapshot` and
   `google_antigravity_release_draft` for release planning, PR descriptions,
   changelog entries, release notes, and local git release context.
+- Use `google_antigravity_list_models` before assuming a model id is available
+  or when comparing Gemini, Claude, GPT-OSS, and image model availability.
 - Use `google_antigravity_quota_status` when quota, plan, or paid-tier routing
   matters.
 

@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, List
 from . import auth, chat, client, grounding, image, models, quota, release, routing, writing
 
 SERVER_NAME = "google-antigravity-codex"
-SERVER_VERSION = "0.3.1+codex.20260605184737"
+SERVER_VERSION = "0.3.2+codex.20260605185121"
 
 
 def _schema_auth_empty() -> Dict[str, Any]:
