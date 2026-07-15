@@ -122,6 +122,26 @@ def allowed_roots() -> list[Path]:
     return list(dict.fromkeys(roots))
 
 
+def explicit_workspace_root(value: str | Path) -> Path:
+    """Validate a workspace root supplied visibly as an MCP tool argument.
+
+    This is the stateless MCP alternative to assuming that the server process
+    cwd is the user's workspace. Broad roots and sensitive locations remain
+    unavailable even when a caller supplies them explicitly.
+    """
+    root = Path(value).expanduser().resolve()
+    filesystem_root = Path(root.anchor).resolve()
+    if root in {filesystem_root, Path.home().resolve()}:
+        raise ValueError(f"explicit workspace root is too broad and is blocked: {root}")
+    if is_sensitive_path(root):
+        raise ValueError(f"explicit workspace root points to a sensitive path: {root}")
+    if not root.exists():
+        raise ValueError(f"explicit workspace root does not exist: {root}")
+    if not root.is_dir():
+        raise ValueError(f"explicit workspace root is not a directory: {root}")
+    return root
+
+
 def _is_within(path: Path, roots: Iterable[Path]) -> bool:
     for root in roots:
         try:
@@ -155,11 +175,16 @@ def resolve_allowed_path(
     must_exist: bool = True,
     directory: bool | None = None,
     allow_sensitive: bool = False,
+    explicit_root: str | Path | None = None,
 ) -> Path:
     path = Path(value).expanduser().resolve()
-    if not _is_within(path, allowed_roots()):
-        roots = ", ".join(str(root) for root in allowed_roots())
-        raise ValueError(f"{purpose} is outside allowed roots ({roots}): {path}")
+    roots = allowed_roots()
+    if explicit_root is not None:
+        roots.append(explicit_workspace_root(explicit_root))
+    roots = list(dict.fromkeys(roots))
+    if not _is_within(path, roots):
+        root_text = ", ".join(str(root) for root in roots)
+        raise ValueError(f"{purpose} is outside allowed roots ({root_text}): {path}")
     if not allow_sensitive and is_sensitive_path(path):
         raise ValueError(f"{purpose} points to a sensitive path and is blocked: {path}")
     if must_exist and not path.exists():

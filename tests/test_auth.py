@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import stat
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -115,3 +117,35 @@ def test_credentials_parse_packed_refresh_project_ids():
     assert creds.refresh_token == "refresh"
     assert creds.project_id == "project"
     assert creds.managed_project_id == "managed"
+
+
+def test_load_credentials_is_read_only_when_missing_or_present(tmp_path):
+    path = tmp_path / "credentials.json"
+    with patch.dict(os.environ, {"GOOGLE_ANTIGRAVITY_CREDENTIALS_FILE": str(path)}):
+        assert auth.load_credentials() is None
+        assert not path.with_suffix(".json.lock").exists()
+        path.write_text(
+            json.dumps(
+                {
+                    "access_token": "access",
+                    "refresh_token": "refresh",
+                    "expires_at_ms": 9999999999999,
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert auth.load_credentials() is not None
+        assert not path.with_suffix(".json.lock").exists()
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS filesystem mode hardening")
+def test_macos_credential_storage_uses_private_directory_file_and_lock(tmp_path):
+    config = tmp_path / "private-config"
+    path = config / "credentials.json"
+    with patch.dict(os.environ, {"GOOGLE_ANTIGRAVITY_CREDENTIALS_FILE": str(path)}):
+        auth.save_credentials(auth.Credentials("access", "refresh", 9999999999999))
+
+    assert stat.S_IMODE(config.stat().st_mode) == 0o700
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(path.with_suffix(".json.lock").stat().st_mode) == 0o600
+    assert not list(config.glob("credentials.json.tmp.*"))

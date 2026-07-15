@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "google-antigravity-codex"
-version = "0.5.0"
+version = "0.6.0"
 description = "Independent Codex plugin and MCP tools for Google Antigravity."
 readme = "README.md"
 requires-python = ">=3.9"

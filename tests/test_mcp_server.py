@@ -34,6 +34,61 @@ def test_initialize_and_tools_list():
         tool for tool in tools["result"]["tools"] if tool["name"] == "google_antigravity_release_snapshot"
     )
     assert "check_commands" not in release_tool["inputSchema"]["properties"]
+    assert release_tool["title"]
+    assert release_tool["annotations"]["readOnlyHint"] is True
+    assert release_tool["outputSchema"]["type"] == "object"
+
+
+def modern_request(request_id, method, params=None, *, version="2026-07-28"):
+    request_params = dict(params or {})
+    request_params["_meta"] = {
+        "io.modelcontextprotocol/protocolVersion": version,
+        "io.modelcontextprotocol/clientInfo": {"name": "pytest", "version": "1"},
+        "io.modelcontextprotocol/clientCapabilities": {},
+    }
+    return {"jsonrpc": "2.0", "id": request_id, "method": method, "params": request_params}
+
+
+def test_rc_discovery_and_stateless_tools_list():
+    discovery = mcp_server.handle_request(modern_request(20, "server/discover"))
+    tools = mcp_server.handle_request(modern_request(21, "tools/list"))
+
+    assert discovery["result"]["resultType"] == "complete"
+    assert "2026-07-28" in discovery["result"]["supportedVersions"]
+    assert discovery["result"]["serverInfo"]["version"] == mcp_server.SERVER_VERSION
+    assert discovery["result"]["ttlMs"] > 0
+    assert discovery["result"]["cacheScope"] == "public"
+    assert tools["result"]["resultType"] == "complete"
+    assert tools["result"]["ttlMs"] > 0
+    assert tools["result"]["cacheScope"] == "public"
+    assert [tool["name"] for tool in tools["result"]["tools"]] == [
+        tool["name"] for tool in mcp_server.tool_definitions()
+    ]
+
+
+def test_rc_rejects_legacy_session_methods_and_unsupported_version():
+    ping = mcp_server.handle_request(modern_request(22, "ping"))
+    unsupported = mcp_server.handle_request(
+        modern_request(23, "server/discover", version="2027-01-01")
+    )
+
+    assert ping["error"]["code"] == -32601
+    assert unsupported["error"]["code"] == -32022
+    assert unsupported["error"]["data"]["requested"] == "2027-01-01"
+    assert "2026-07-28" in unsupported["error"]["data"]["supported"]
+
+
+def test_rc_tool_call_result_has_result_type():
+    response = mcp_server.handle_request(
+        modern_request(
+            24,
+            "tools/call",
+            {"name": "google_antigravity_route_model", "arguments": {"task": "writing"}},
+        )
+    )
+
+    assert response["result"]["resultType"] == "complete"
+    assert response["result"]["structuredContent"]["success"] is True
 
 
 def test_consent_status_is_read_only_and_reports_master_opt_in(monkeypatch):

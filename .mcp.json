@@ -4,7 +4,11 @@
       "command": "python3",
       "args": [
         "./scripts/google_antigravity_mcp.py"
-      ]
+      ],
+      "cwd": ".",
+      "env": {
+        "GOOGLE_ANTIGRAVITY_RUNNING_UNDER_CODEX_MCP": "1"
+      }
     }
   }
 }

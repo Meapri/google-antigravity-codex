@@ -183,8 +183,12 @@ def read_source(arguments: Dict[str, Any]) -> str:
         chunks.append(text)
     source_file = str(arguments.get("source_file") or "").strip()
     if source_file:
+        workspace_root = str(arguments.get("workspace_root") or "").strip() or None
         path = security.resolve_allowed_path(
-            source_file, purpose="source_file", directory=False
+            source_file,
+            purpose="source_file",
+            directory=False,
+            explicit_root=workspace_root,
         )
         max_bytes = security.bounded_int_env(
             "GOOGLE_ANTIGRAVITY_MAX_SOURCE_BYTES",
@@ -205,7 +209,10 @@ def collect_project_context(arguments: Dict[str, Any], task: str) -> str:
     if requested not in {"git-summary", "git-diff"}:
         return ""
     requested_root = security.resolve_allowed_path(
-        str(arguments.get("project_root") or "."), purpose="project_root", directory=True
+        str(arguments.get("project_root") or "."),
+        purpose="project_root",
+        directory=True,
+        explicit_root=str(arguments.get("project_root") or "."),
     )
     root = _git_root(requested_root)
     if root is None:

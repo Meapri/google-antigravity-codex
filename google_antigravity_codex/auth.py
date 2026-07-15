@@ -216,8 +216,9 @@ def require_oauth_client() -> OAuthClient:
 def load_credentials() -> Optional[Credentials]:
     path = paths.credentials_path()
     try:
-        with _file_lock(path):
-            data = json.loads(path.read_text(encoding="utf-8"))
+        # Writers replace the complete JSON file atomically, so a read lock is
+        # unnecessary and would make a status check create a sidecar lock file.
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(data, dict):

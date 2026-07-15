@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import json
+import stat
+import sys
+
+import pytest
 
 from google_antigravity_codex import consent_cli, security
 
@@ -22,3 +26,15 @@ def test_local_consent_file_grant_and_revoke(tmp_path, monkeypatch):
     assert consent_cli.revoke() == path
     assert path.exists() is False
     assert security.user_consent_enabled() is False
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS filesystem mode hardening")
+def test_macos_consent_directory_is_private(tmp_path, monkeypatch):
+    path = tmp_path / "private-consent" / "consent.json"
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_CONSENT_FILE", str(path))
+
+    consent_cli.grant()
+
+    assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert not list(path.parent.glob(".consent.json.*.tmp"))

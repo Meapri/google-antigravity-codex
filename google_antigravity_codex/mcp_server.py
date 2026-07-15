@@ -24,8 +24,22 @@ from . import (
 
 SERVER_NAME = "google-antigravity-codex"
 SERVER_VERSION = __version__
-SUPPORTED_PROTOCOL_VERSIONS = {"2024-11-05", "2025-03-26", "2025-06-18"}
+MODERN_PROTOCOL_VERSION = "2026-07-28"
+LEGACY_PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
+SUPPORTED_PROTOCOL_VERSIONS = (MODERN_PROTOCOL_VERSION, *LEGACY_PROTOCOL_VERSIONS)
 DEFAULT_PROTOCOL_VERSION = "2024-11-05"
+JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
+DISCOVERY_TTL_MS = 300_000
+MODERN_META_PROTOCOL = "io.modelcontextprotocol/protocolVersion"
+MODERN_META_CLIENT_INFO = "io.modelcontextprotocol/clientInfo"
+MODERN_META_CLIENT_CAPABILITIES = "io.modelcontextprotocol/clientCapabilities"
+
+
+class RpcError(ValueError):
+    def __init__(self, code: int, message: str, *, data: Dict[str, Any] | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.data = data
 
 
 def _schema_auth_empty() -> Dict[str, Any]:
@@ -102,6 +116,10 @@ WRITING_SCHEMA: Dict[str, Any] = {
         "instruction": {"type": "string"},
         "source_text": {"type": "string"},
         "source_file": {"type": "string"},
+        "workspace_root": {
+            "type": "string",
+            "description": "Explicit workspace root containing source_file.",
+        },
         "context": {"type": "string"},
         "profile": {
             "oneOf": [
@@ -123,7 +141,11 @@ WRITING_SCHEMA: Dict[str, Any] = {
             "enum": ["off", "auto", "git-summary", "git-diff"],
             "default": "off",
         },
-        "project_root": {"type": "string", "default": "."},
+        "project_root": {
+            "type": "string",
+            "default": ".",
+            "description": "Explicit repository root for stateless project context access.",
+        },
         "max_project_context_chars": {"type": "integer", "minimum": 1000, "maximum": 50000},
         "model": {"type": "string", "default": writing.DEFAULT_MODEL},
         "temperature": {"type": "number"},
@@ -138,7 +160,11 @@ WRITING_SCHEMA: Dict[str, Any] = {
 RELEASE_SNAPSHOT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "properties": {
-        "repo": {"type": "string", "default": "."},
+        "repo": {
+            "type": "string",
+            "default": ".",
+            "description": "Explicit repository root; broad and sensitive roots are blocked.",
+        },
         "base_ref": {"type": "string"},
         "head_ref": {"type": "string", "default": "HEAD"},
     },
@@ -202,7 +228,10 @@ CLI_CHAT_SCHEMA: Dict[str, Any] = {
         "agent": {"type": "string"},
         "mode": {"type": "string", "enum": ["accept-edits", "plan"], "default": "plan"},
         "sandbox": {"type": "boolean", "default": True},
-        "cwd": {"type": "string"},
+        "cwd": {
+            "type": "string",
+            "description": "Required only for explicitly opted-in accept-edits mode; blocked in plan mode.",
+        },
         "timeout_sec": {
             "type": "integer",
             "minimum": 20,
@@ -214,9 +243,79 @@ CLI_CHAT_SCHEMA: Dict[str, Any] = {
     "additionalProperties": False,
 }
 
+COMMON_OUTPUT_SCHEMA: Dict[str, Any] = {
+    "$schema": JSON_SCHEMA_DIALECT,
+    "type": "object",
+    "description": "Structured result or a structured, secret-safe tool error.",
+    "additionalProperties": True,
+}
+
+TOOL_METADATA: Dict[str, Dict[str, Any]] = {
+    "google_antigravity_cli_status": {
+        "title": "Check Antigravity CLI",
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
+    "google_antigravity_cli_chat": {
+        "title": "Run Antigravity CLI Prompt",
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
+    },
+    "google_antigravity_consent_status": {
+        "title": "Check Antigravity Consent",
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    },
+    "google_antigravity_auth_status": {
+        "title": "Check Direct OAuth Status",
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    },
+    "google_antigravity_login_url": {
+        "title": "Start Direct OAuth Login",
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
+    },
+    "google_antigravity_finish_login": {
+        "title": "Finish Direct OAuth Login",
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
+    },
+    "google_antigravity_chat": {
+        "title": "Chat with Antigravity",
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
+    },
+    "google_grounded_search": {
+        "title": "Search with Google Grounding",
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
+    },
+    "google_antigravity_generate_image": {
+        "title": "Generate an Antigravity Image",
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
+    },
+    "google_antigravity_write": {
+        "title": "Write with Antigravity",
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
+    },
+    "google_antigravity_release_snapshot": {
+        "title": "Collect Release Snapshot",
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    },
+    "google_antigravity_release_draft": {
+        "title": "Draft Release Materials",
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
+    "google_antigravity_list_models": {
+        "title": "List Antigravity Models",
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
+    "google_antigravity_route_model": {
+        "title": "Route to an Antigravity Model",
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    },
+    "google_antigravity_quota_status": {
+        "title": "Check Antigravity Quota",
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
+}
+
 
 def tool_definitions() -> List[Dict[str, Any]]:
-    return [
+    definitions = [
         {
             "name": "google_antigravity_cli_status",
             "description": (
@@ -228,7 +327,9 @@ def tool_definitions() -> List[Dict[str, Any]]:
         {
             "name": "google_antigravity_cli_chat",
             "description": (
-                "Run a non-interactive prompt through the official agy CLI after explicit user consent."
+                "Run a non-interactive prompt through the official agy CLI after explicit user consent. "
+                "Plan mode is confined to a disposable directory; repository mutation requires accept-edits, "
+                "an explicit cwd, and a separate local opt-in."
             ),
             "inputSchema": CLI_CHAT_SCHEMA,
         },
@@ -304,6 +405,16 @@ def tool_definitions() -> List[Dict[str, Any]]:
             "inputSchema": _schema_auth_empty(),
         },
     ]
+    enriched: List[Dict[str, Any]] = []
+    for definition in definitions:
+        item = dict(definition)
+        input_schema = dict(item["inputSchema"])
+        input_schema.setdefault("$schema", JSON_SCHEMA_DIALECT)
+        item["inputSchema"] = input_schema
+        item["outputSchema"] = dict(COMMON_OUTPUT_SCHEMA)
+        item.update(TOOL_METADATA[item["name"]])
+        enriched.append(item)
+    return enriched
 
 
 def _text_result(text: str, structured: Dict[str, Any], *, is_error: bool = False) -> Dict[str, Any]:
@@ -406,18 +517,79 @@ def dispatch_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     return _safe_call(table[name], arguments)
 
 
+def _modern_request_protocol(message: Dict[str, Any]) -> str:
+    params = message.get("params") or {}
+    if not isinstance(params, dict):
+        raise RpcError(-32602, "params must be an object")
+    metadata = params.get("_meta") or {}
+    if not isinstance(metadata, dict):
+        raise RpcError(-32602, "params._meta must be an object")
+    version = str(metadata.get(MODERN_META_PROTOCOL) or "")
+    if not version:
+        if message.get("method") == "server/discover":
+            raise RpcError(-32602, "server/discover requires the modern protocol _meta")
+        return ""
+    if version not in SUPPORTED_PROTOCOL_VERSIONS:
+        raise RpcError(
+            -32022,
+            f"Unsupported MCP protocol version: {version}",
+            data={"supported": list(SUPPORTED_PROTOCOL_VERSIONS), "requested": version},
+        )
+    if version == MODERN_PROTOCOL_VERSION:
+        missing = [
+            key
+            for key in (MODERN_META_CLIENT_INFO, MODERN_META_CLIENT_CAPABILITIES)
+            if key not in metadata
+        ]
+        if missing:
+            raise RpcError(-32602, f"modern MCP _meta is missing: {', '.join(missing)}")
+    return version
+
+
+def _discovery_result() -> Dict[str, Any]:
+    return {
+        "resultType": "complete",
+        "supportedVersions": list(SUPPORTED_PROTOCOL_VERSIONS),
+        "capabilities": {"tools": {}},
+        "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
+        "instructions": (
+            "Antigravity tools are consent-gated. Pass repository and workspace roots "
+            "explicitly; filesystem-wide, home, and sensitive roots are blocked."
+        ),
+        "ttlMs": DISCOVERY_TTL_MS,
+        "cacheScope": "public",
+    }
+
+
+def _complete_modern_result(method: str, result: Dict[str, Any]) -> Dict[str, Any]:
+    modern = dict(result)
+    modern.setdefault("resultType", "complete")
+    if method == "tools/list":
+        modern.setdefault("ttlMs", DISCOVERY_TTL_MS)
+        modern.setdefault("cacheScope", "public")
+    return modern
+
+
 def handle_request(message: Dict[str, Any]) -> Dict[str, Any] | None:
     request_id = message.get("id")
     if request_id is None:
         return None
     method = message.get("method")
     try:
-        if method == "initialize":
+        protocol = _modern_request_protocol(message)
+        modern = protocol == MODERN_PROTOCOL_VERSION
+        if modern and method in {"initialize", "ping"}:
+            raise RpcError(-32601, f"{method} is not available in stateless MCP {protocol}")
+        if method == "server/discover":
+            if not modern:
+                raise RpcError(-32602, "server/discover requires the modern MCP protocol")
+            result = _discovery_result()
+        elif method == "initialize":
             params = message.get("params") or {}
             requested_protocol = str(params.get("protocolVersion") or DEFAULT_PROTOCOL_VERSION)
             selected_protocol = (
                 requested_protocol
-                if requested_protocol in SUPPORTED_PROTOCOL_VERSIONS
+                if requested_protocol in LEGACY_PROTOCOL_VERSIONS
                 else DEFAULT_PROTOCOL_VERSION
             )
             result = {
@@ -434,13 +606,22 @@ def handle_request(message: Dict[str, Any]) -> Dict[str, Any] | None:
             name = str(params.get("name") or "")
             arguments = params.get("arguments") or {}
             if not isinstance(arguments, dict):
-                raise ValueError("tool arguments must be an object")
+                raise RpcError(-32602, "tool arguments must be an object")
+            if name not in {tool["name"] for tool in tool_definitions()}:
+                raise RpcError(-32602, f"unknown tool: {name}")
             result = dispatch_tool(name, arguments)
         else:
-            raise ValueError(f"unsupported method: {method}")
+            raise RpcError(-32601, f"unsupported method: {method}")
+        if modern:
+            result = _complete_modern_result(str(method), result)
         return {"jsonrpc": "2.0", "id": request_id, "result": result}
+    except RpcError as exc:
+        error: Dict[str, Any] = {"code": exc.code, "message": str(exc)}
+        if exc.data is not None:
+            error["data"] = exc.data
+        return {"jsonrpc": "2.0", "id": request_id, "error": error}
     except Exception as exc:
-        return {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32000, "message": str(exc)}}
+        return {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32603, "message": str(exc)}}
 
 
 def serve() -> int:

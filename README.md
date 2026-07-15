@@ -1,12 +1,13 @@
 # Google Antigravity Codex
 
 Codex skills and a local MCP server centered on Google's official Antigravity
-CLI (`agy`). The current release is tested with `agy 1.1.2` and requires
-`agy >= 1.1.1`.
+CLI (`agy`). Plugin `0.6.0` is tested on macOS with `agy 1.1.2` and requires
+`agy >= 1.1.1`. Windows and Linux runtime verification is planned separately.
 
 The plugin supports both the native Antigravity bundle and Codex-facing MCP
-integrations. Optional authenticated integrations are available after the user
-records explicit consent.
+integrations. Its stdio server supports legacy MCP through `2025-11-25` and the
+stateless `2026-07-28` release-candidate protocol. Optional authenticated
+integrations are available after the user records explicit consent.
 
 > [!WARNING]
 > Direct Code Assist/OAuth uses non-public endpoints. It is opt-in so the user
@@ -15,8 +16,8 @@ records explicit consent.
 > [!CAUTION]
 > Google's current Antigravity terms say third-party software using an
 > Antigravity login to access the service breaches the agreement and may lead
-> to suspension or termination. Therefore the Codex-to-`agy` chat bridge is
-> therefore requires explicit consent. Review the
+> to suspension or termination. Therefore the Codex-to-`agy` chat bridge
+> requires explicit consent. Review the
 > [Antigravity Terms](https://antigravity.google/terms) and your organization's
 > applicable agreement before enabling it; the plugin reports the choice but
 > does not override it.
@@ -28,6 +29,7 @@ records explicit consent.
   model routing, and diagnostics
 - Native Antigravity `plugin.json`, `mcp_config.json`, and Agent Skills
 - Recursion protection for `agy -> MCP -> agy`
+- MCP RC discovery, per-request metadata, structured schemas, and tool safety hints
 - Allowlisted local paths, sensitive-file blocking, bounded image downloads,
   and private-network URL rejection
 - Clean POSIX and Windows plugin bundles
@@ -94,15 +96,24 @@ agy plugin validate dist/antigravity-plugin/google-antigravity-codex
 readiness, and plugin validation. It deliberately reports keyring auth as
 "not directly inspectable". A short `google_antigravity_cli_chat` call is the
 only end-to-end request-readiness check and becomes available after consent.
+Inside the Codex MCP host, status skips the nested `agy models` probe so a
+read-only host cannot stall on recursive CLI/plugin startup. Run the local
+doctor command above for the live model-list check; set
+`GOOGLE_ANTIGRAVITY_PROBE_MODELS_UNDER_CODEX=1` only when deliberately testing
+that nested path.
 
 ## Security defaults
 
-- CLI calls default to `--mode plan --sandbox`.
+- CLI calls default to `--mode plan --sandbox`. Plan mode always runs in a
+  disposable directory and rejects a workspace `cwd`.
 - Optional integrations require explicit user consent.
-- `accept-edits` requires `GOOGLE_ANTIGRAVITY_ALLOW_MUTATING_CLI=1`.
-- File, repository, and CLI `cwd` parameters may only access the current
-  directory or roots listed in `GOOGLE_ANTIGRAVITY_ALLOWED_ROOTS` (separated by
-  the platform path separator).
+- `accept-edits` requires `GOOGLE_ANTIGRAVITY_ALLOW_MUTATING_CLI=1` and an
+  explicit `cwd`.
+- File and repository tools accept an explicit workspace/repository root as a
+  stateless MCP argument. Server operators can also list roots in
+  `GOOGLE_ANTIGRAVITY_ALLOWED_ROOTS` (separated by the platform path separator).
+  Files must remain inside the supplied root; filesystem-wide and home roots
+  are rejected.
 - Common secret paths such as `.env`, `.ssh`, `.aws`, `.netrc`, and credential
   files remain blocked even inside an allowed root.
 - MCP release tools never accept arbitrary check commands. Direct library use
@@ -113,6 +124,8 @@ only end-to-end request-readiness check and becomes available after consent.
 - Prompts passed to `agy --print` are command-line arguments and may be visible
   to same-user process inspection on some operating systems. Do not put secrets
   in prompts.
+- Official CLI subprocesses remove unrelated ambient credentials, SSH/GPG agent
+  sockets, and `CODEX_`/`MCP_` host variables before starting `agy`.
 
 See [docs/security.md](docs/security.md) and [SECURITY.md](SECURITY.md).
 
@@ -158,6 +171,13 @@ Antigravity itself, nested CLI status/chat tools stay hidden because calling
 other consented tools.
 
 ## MCP tools
+
+For MCP `2026-07-28`, clients start with `server/discover` and send protocol,
+client information, and capabilities in request `_meta`. Modern results include
+`resultType`; discovery and `tools/list` include `ttlMs` and `cacheScope`.
+Legacy clients continue to use `initialize`. Tool annotations are advisory UI
+hints; the consent, path, mutation, recursion, and network checks remain the
+enforced security boundary.
 
 Primary tools:
 

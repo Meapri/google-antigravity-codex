@@ -1,6 +1,6 @@
 {
   "name": "google-antigravity-codex",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Codex skills and MCP tools for Google Antigravity CLI and consent-gated direct integrations.",
   "author": {
     "name": "Park Chanwoo",
@@ -44,16 +44,9 @@
       "MCP"
     ],
     "defaultPrompt": [
-      "Check the native Antigravity plugin bundle.",
-      "Verify this plugin's security defaults.",
-      "Check the explicit Antigravity consent status.",
-      "Polish this prose with Antigravity after consent.",
-      "Draft release notes from the current repo.",
-      "Generate an image with Antigravity after consent.",
-      "List available Antigravity models.",
-      "Route this task to the best Antigravity model.",
-      "Review this code using the host model.",
-      "Run an Antigravity plugin doctor check."
+      "Run an Antigravity plugin doctor check.",
+      "List available Antigravity models and route this task.",
+      "Use Antigravity to help with this coding or writing task after consent."
     ]
   },
   "mcpServers": "./.mcp.json"

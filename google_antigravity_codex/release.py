@@ -95,11 +95,21 @@ def _git(repo: Path, args: List[str], *, timeout_sec: int = 30) -> str:
 
 
 def repo_root(path: Path) -> Path:
-    path = security.resolve_allowed_path(path, purpose="release repo", directory=True)
+    path = security.resolve_allowed_path(
+        path,
+        purpose="release repo",
+        directory=True,
+        explicit_root=path,
+    )
     proc = _run(path, ["git", "rev-parse", "--show-toplevel"])
     if proc.returncode != 0:
         raise ValueError(f"not a git repository: {path}")
-    return Path(proc.stdout.strip()).resolve()
+    return security.resolve_allowed_path(
+        Path(proc.stdout.strip()),
+        purpose="release repo root",
+        directory=True,
+        explicit_root=path,
+    )
 
 
 def normalize_remote_url(remote: str) -> str:

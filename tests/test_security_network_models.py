@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from pathlib import Path
 import socket
 from unittest.mock import patch
 
@@ -65,6 +66,41 @@ def test_security_path_shape_and_bounded_env(tmp_path, monkeypatch):
     assert security.bounded_int_env("LIMIT", 5, minimum=1, maximum=10) == 5
     monkeypatch.setenv("LIMIT", "999")
     assert security.bounded_int_env("LIMIT", 5, minimum=1, maximum=10) == 10
+
+
+def test_explicit_workspace_root_allows_visible_tool_path_but_not_escape(tmp_path, monkeypatch):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    source = workspace / "README.md"
+    source.write_text("ok", encoding="utf-8")
+    outside = tmp_path / "outside.txt"
+    outside.write_text("no", encoding="utf-8")
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_ALLOWED_ROOTS", "")
+
+    assert security.resolve_allowed_path(
+        source,
+        purpose="source",
+        directory=False,
+        explicit_root=workspace,
+    ) == source
+    with pytest.raises(ValueError, match="outside allowed roots"):
+        security.resolve_allowed_path(
+            outside,
+            purpose="source",
+            directory=False,
+            explicit_root=workspace,
+        )
+
+
+def test_explicit_workspace_root_rejects_broad_and_sensitive_roots(tmp_path):
+    with pytest.raises(ValueError, match="too broad"):
+        security.explicit_workspace_root(Path(Path.cwd().anchor))
+    with pytest.raises(ValueError, match="too broad"):
+        security.explicit_workspace_root(Path.home())
+    sensitive = tmp_path / ".ssh"
+    sensitive.mkdir()
+    with pytest.raises(ValueError, match="sensitive"):
+        security.explicit_workspace_root(sensitive)
 
 
 def test_master_consent_enables_both_optional_backends(monkeypatch):

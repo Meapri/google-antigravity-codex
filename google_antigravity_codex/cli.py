@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import tempfile
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from . import __version__, security
@@ -21,6 +22,15 @@ from . import __version__, security
 MIN_SUPPORTED_CLI_VERSION = "1.1.1"
 TESTED_CLI_VERSION = "1.1.2"
 DEFAULT_TIMEOUT_SECONDS = 300
+SENSITIVE_CHILD_ENV_RE = re.compile(
+    r"(?:^|_)(?:TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY|ACCESS_KEY|CREDENTIALS?)(?:_|$)"
+)
+SENSITIVE_CHILD_ENV_NAMES = {
+    "GPG_AGENT_INFO",
+    "GOOGLE_ANTIGRAVITY_RUNNING_UNDER_CODEX_MCP",
+    "SSH_AUTH_SOCK",
+}
+HOST_CHILD_ENV_PREFIXES = ("CODEX_", "MCP_")
 
 MODEL_DISPLAY_TO_ID = {
     "Gemini 3.5 Flash (Medium)": "gemini-3.5-flash-medium",
@@ -98,6 +108,17 @@ def _sanitize_output(value: str, *, limit: int = 2000) -> str:
     return text[: max(0, int(limit))]
 
 
+def _child_environment() -> Dict[str, str]:
+    """Build an agy environment without unrelated ambient credentials."""
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if name.upper() not in SENSITIVE_CHILD_ENV_NAMES
+        and not SENSITIVE_CHILD_ENV_RE.search(name.upper())
+        and not name.upper().startswith(HOST_CHILD_ENV_PREFIXES)
+    }
+
+
 def find_executable() -> str:
     override = os.getenv("GOOGLE_ANTIGRAVITY_CLI", "").strip()
     if override:
@@ -137,7 +158,7 @@ def inspect_cli(*, timeout: float = 5.0) -> CliInfo:
     if not executable:
         return CliInfo(error="agy executable not found")
     try:
-        result = _run([executable, "--version"], timeout=timeout)
+        result = _run([executable, "--version"], timeout=timeout, env=_child_environment())
     except CliError as exc:
         return CliInfo(executable=executable, installed=True, error=str(exc))
     version = _extract_version(f"{result.stdout}\n{result.stderr}")
@@ -177,7 +198,11 @@ def require_cli() -> CliInfo:
 
 def list_models(*, timeout: float = 30.0) -> List[Dict[str, str]]:
     info = require_cli()
-    result = _run([info.executable, "models"], timeout=timeout)
+    result = _run(
+        [info.executable, "models"],
+        timeout=timeout,
+        env=_child_environment(),
+    )
     if result.returncode != 0:
         detail = _sanitize_output((result.stderr or result.stdout).strip())
         raise CliError(
@@ -229,6 +254,17 @@ def run_prompt(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "accept-edits mode is blocked; set GOOGLE_ANTIGRAVITY_ALLOW_MUTATING_CLI=1 locally to opt in.",
             code="agy_cli_mutation_blocked",
         )
+    cwd_raw = str(arguments.get("cwd") or "").strip()
+    if mode == "plan" and cwd_raw:
+        raise CliError(
+            "plan mode cannot receive a workspace cwd; it runs in a disposable directory.",
+            code="agy_cli_plan_cwd_blocked",
+        )
+    if mode == "accept-edits" and not cwd_raw:
+        raise CliError(
+            "accept-edits mode requires an explicit cwd.",
+            code="agy_cli_cwd_required",
+        )
     info = require_cli()
     command = [info.executable, "--print", prompt]
     model = str(arguments.get("model") or "").strip()
@@ -240,7 +276,9 @@ def run_prompt(arguments: Dict[str, Any]) -> Dict[str, Any]:
     if mode:
         command.extend(["--mode", mode])
     sandbox = bool(arguments.get("sandbox", True))
-    if not sandbox and not security.env_flag("GOOGLE_ANTIGRAVITY_ALLOW_UNSANDBOXED_CLI"):
+    if not sandbox and (
+        mode == "plan" or not security.env_flag("GOOGLE_ANTIGRAVITY_ALLOW_UNSANDBOXED_CLI")
+    ):
         raise CliError(
             "Unsandboxed CLI execution is blocked.",
             code="agy_cli_unsandboxed_blocked",
@@ -252,19 +290,32 @@ def run_prompt(arguments: Dict[str, Any]) -> Dict[str, Any]:
         raise CliError("timeout_sec must be finite", code="agy_cli_timeout_invalid")
     timeout = max(20.0, min(timeout, 1800.0))
     command.extend(["--print-timeout", f"{timeout:g}s"])
-    cwd_raw = str(arguments.get("cwd") or "").strip()
     try:
         cwd = (
-            security.resolve_allowed_path(cwd_raw, purpose="agy cwd", directory=True)
+            security.resolve_allowed_path(
+                cwd_raw,
+                purpose="agy cwd",
+                directory=True,
+                explicit_root=cwd_raw,
+            )
             if cwd_raw
             else None
         )
     except ValueError as exc:
         raise CliError(str(exc), code="agy_cli_cwd_invalid") from exc
 
-    child_env = dict(os.environ)
+    child_env = _child_environment()
     child_env["GOOGLE_ANTIGRAVITY_CLI_BRIDGE_DEPTH"] = "1"
-    result = _run(command, timeout=max(25.0, timeout + 5.0), cwd=cwd, env=child_env)
+    if mode == "plan":
+        with tempfile.TemporaryDirectory(prefix="google-antigravity-plan-") as temporary_cwd:
+            result = _run(
+                command,
+                timeout=max(25.0, timeout + 5.0),
+                cwd=Path(temporary_cwd),
+                env=child_env,
+            )
+    else:
+        result = _run(command, timeout=max(25.0, timeout + 5.0), cwd=cwd, env=child_env)
     text = result.stdout.strip()
     if result.returncode != 0:
         detail = _sanitize_output(result.stderr.strip() or text)
@@ -293,6 +344,7 @@ def run_prompt(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "agent": agent,
             "mode": mode,
             "sandbox": sandbox,
+            "workspace_access": "disposable" if mode == "plan" else "explicit-mutating",
             "returncode": result.returncode,
         },
     }
@@ -305,7 +357,11 @@ def plugin_root() -> Path:
 def validate_plugin(*, root: Optional[Path] = None, timeout: float = 30.0) -> Dict[str, Any]:
     target = (root or plugin_root()).resolve()
     info = require_cli()
-    result = _run([info.executable, "plugin", "validate", str(target)], timeout=timeout)
+    result = _run(
+        [info.executable, "plugin", "validate", str(target)],
+        timeout=timeout,
+        env=_child_environment(),
+    )
     output = _sanitize_output((result.stdout or result.stderr).strip())
     return {
         "valid": result.returncode == 0,
@@ -320,6 +376,7 @@ def status(_: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     root = plugin_root()
     models: List[Dict[str, str]] = []
     model_error = ""
+    model_probe_state = "not_run"
     validation: Dict[str, Any] = {
         "valid": False,
         "returncode": None,
@@ -327,10 +384,21 @@ def status(_: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         "plugin_root": str(root),
     }
     if info.compatible:
-        try:
-            models = list_models()
-        except CliError as exc:
-            model_error = str(exc)
+        if security.env_flag("GOOGLE_ANTIGRAVITY_RUNNING_UNDER_CODEX_MCP") and not security.env_flag(
+            "GOOGLE_ANTIGRAVITY_PROBE_MODELS_UNDER_CODEX"
+        ):
+            model_probe_state = "skipped_under_codex"
+            model_error = (
+                "Model probing is skipped inside the Codex MCP host to avoid nested agy startup; "
+                "run scripts/google_antigravity_doctor.py for the live model check."
+            )
+        else:
+            try:
+                models = list_models()
+                model_probe_state = "ready"
+            except CliError as exc:
+                model_probe_state = "failed"
+                model_error = str(exc)
         try:
             validation = validate_plugin(root=root)
         except CliError as exc:
@@ -339,7 +407,9 @@ def status(_: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     warnings: List[str] = []
     if info.installed and info.compatible and not info.tested:
         warnings.append("agy_version_not_exactly_tested")
-    if model_error:
+    if model_probe_state == "skipped_under_codex":
+        warnings.append("agy_model_probe_skipped_under_codex")
+    elif model_error:
         warnings.append("agy_session_or_model_check_failed")
     if not validation.get("valid"):
         warnings.append("agy_plugin_validation_failed")
@@ -356,6 +426,7 @@ def status(_: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         "cli": info.to_dict(),
         "native_plugin": validation,
         "model_listing_ready": model_listing_ready,
+        "model_probe_state": model_probe_state,
         "authentication_state": "not_directly_inspectable",
         "authentication_note": (
             "agy has no non-interactive auth-status command. The optional cli_chat bridge becomes "

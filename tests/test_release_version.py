@@ -11,4 +11,5 @@ def test_release_version_fields_match():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     found = module.versions()
-    assert set(found.values()) == {"0.5.0"}
+    assert found
+    assert len(set(found.values())) == 1

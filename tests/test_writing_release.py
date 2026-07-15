@@ -58,6 +58,29 @@ def test_release_snapshot_and_draft_from_git_repo(tmp_path, monkeypatch):
     assert "v1.2.4" in draft_result["text"]
 
 
+def test_release_repo_parameter_is_an_explicit_workspace_root(tmp_path, monkeypatch):
+    repo = tmp_path / "outside-server-cwd"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_ALLOWED_ROOTS", "")
+
+    snapshot = release.release_snapshot({"repo": str(repo)})["snapshot"]
+
+    assert snapshot["repo_root"] == str(repo.resolve())
+
+
+def test_writing_workspace_root_authorizes_source_file(tmp_path, monkeypatch):
+    workspace = tmp_path / "outside-server-cwd"
+    workspace.mkdir()
+    source = workspace / "note.md"
+    source.write_text("hello", encoding="utf-8")
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_ALLOWED_ROOTS", "")
+
+    assert writing.read_source(
+        {"source_file": str(source), "workspace_root": str(workspace)}
+    ) == "hello"
+
+
 def test_writing_blocks_sensitive_and_outside_source_files(tmp_path, monkeypatch):
     allowed = tmp_path / "allowed"
     allowed.mkdir()

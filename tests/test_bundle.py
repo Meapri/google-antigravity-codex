@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_bundle_is_allowlisted_and_platform_aware(tmp_path):
-    posix = tmp_path / "posix"
+    posix = tmp_path / "posix bundle with spaces"
     windows = tmp_path / "windows"
     script = ROOT / "scripts" / "build_plugin_bundle.py"
 
@@ -36,11 +36,57 @@ def test_bundle_is_allowlisted_and_platform_aware(tmp_path):
 
     posix_config = json.loads((posix / "mcp_config.json").read_text(encoding="utf-8"))
     windows_config = json.loads((windows / "mcp_config.json").read_text(encoding="utf-8"))
+    posix_codex_config = json.loads((posix / ".mcp.json").read_text(encoding="utf-8"))
+    windows_codex_config = json.loads((windows / ".mcp.json").read_text(encoding="utf-8"))
     assert posix_config["mcpServers"]["google-antigravity-codex"]["command"] == "python3"
     assert windows_config["mcpServers"]["google-antigravity-codex"]["command"] == "py"
     assert windows_config["mcpServers"]["google-antigravity-codex"]["args"][0] == "-3"
+    assert posix_codex_config["mcpServers"]["google-antigravity-codex"]["cwd"] == "."
+    assert windows_codex_config["mcpServers"]["google-antigravity-codex"]["cwd"] == "."
+    assert (
+        posix_codex_config["mcpServers"]["google-antigravity-codex"]["env"]
+        ["GOOGLE_ANTIGRAVITY_RUNNING_UNDER_CODEX_MCP"]
+        == "1"
+    )
+    manifest = json.loads((posix / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    assert len(manifest["interface"]["defaultPrompt"]) <= 3
     server = posix_config["mcpServers"]["google-antigravity-codex"]
     assert server["env"]["GOOGLE_ANTIGRAVITY_RUNNING_UNDER_AGY"] == "1"
     assert "google_antigravity_cli_chat" in server["disabledTools"]
     assert "google_antigravity_chat" not in server["disabledTools"]
     assert "google_antigravity_generate_image" not in server["disabledTools"]
+
+    requests = [
+        {
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "initialize",
+            "params": {"protocolVersion": "2025-11-25"},
+        },
+        {
+            "jsonrpc": "2.0",
+            "id": 11,
+            "method": "server/discover",
+            "params": {
+                "_meta": {
+                    "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                    "io.modelcontextprotocol/clientInfo": {"name": "bundle-test", "version": "1"},
+                    "io.modelcontextprotocol/clientCapabilities": {},
+                }
+            },
+        },
+    ]
+    process = subprocess.run(
+        [sys.executable, "./scripts/google_antigravity_mcp.py"],
+        cwd=posix,
+        input="".join(json.dumps(request) + "\n" for request in requests),
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    responses = [json.loads(line) for line in process.stdout.splitlines() if line.strip()]
+    assert process.returncode == 0
+    assert process.stderr == ""
+    assert responses[0]["result"]["protocolVersion"] == "2025-11-25"
+    assert responses[1]["result"]["resultType"] == "complete"
