@@ -94,6 +94,14 @@ def test_direct_oauth_is_disabled_without_explicit_opt_in(monkeypatch):
     assert error.value.code == "direct_backend_disabled"
 
 
+def test_master_user_consent_enables_direct_oauth_path(monkeypatch):
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_USER_CONSENT", "1")
+    monkeypatch.delenv("GOOGLE_ANTIGRAVITY_ENABLE_DIRECT_BACKEND", raising=False)
+    with pytest.raises(auth.AuthError) as error:
+        auth.build_login_url()
+    assert error.value.code == "oauth_client_missing"
+
+
 def test_credentials_parse_packed_refresh_project_ids():
     creds = auth.Credentials.from_dict(
         {

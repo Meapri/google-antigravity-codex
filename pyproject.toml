@@ -17,6 +17,7 @@ dev = ["build>=1.2", "pytest>=8", "pytest-cov>=5", "ruff>=0.12"]
 
 [project.scripts]
 google-antigravity-mcp = "google_antigravity_codex.mcp_server:serve"
+google-antigravity-consent = "google_antigravity_codex.consent_cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -42,3 +42,5 @@ def test_bundle_is_allowlisted_and_platform_aware(tmp_path):
     server = posix_config["mcpServers"]["google-antigravity-codex"]
     assert server["env"]["GOOGLE_ANTIGRAVITY_RUNNING_UNDER_AGY"] == "1"
     assert "google_antigravity_cli_chat" in server["disabledTools"]
+    assert "google_antigravity_chat" not in server["disabledTools"]
+    assert "google_antigravity_generate_image" not in server["disabledTools"]

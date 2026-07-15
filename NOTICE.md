@@ -1,8 +1,9 @@
 # Notice
 
 This plugin includes an independent implementation of request and response
-shapes used by Google's Antigravity / Code Assist endpoints. That legacy path
-is experimental and disabled by default; the official `agy` CLI is primary.
+shapes used by Google's Antigravity / Code Assist endpoints. That direct path
+requires explicit user consent; the official `agy` CLI remains available as a
+separate integration.
 
 Architecture and quota-parsing ideas were informed by the MIT-licensed
 [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) and

@@ -11,17 +11,7 @@
       },
       "disabledTools": [
         "google_antigravity_cli_status",
-        "google_antigravity_cli_chat",
-        "google_antigravity_auth_status",
-        "google_antigravity_login_url",
-        "google_antigravity_finish_login",
-        "google_antigravity_chat",
-        "google_grounded_search",
-        "google_antigravity_generate_image",
-        "google_antigravity_write",
-        "google_antigravity_list_models",
-        "google_antigravity_route_model",
-        "google_antigravity_quota_status"
+        "google_antigravity_cli_chat"
       ]
     }
   }

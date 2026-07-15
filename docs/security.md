@@ -2,14 +2,16 @@
 
 ## Supported trust model
 
-The supported distribution target is a native `agy` plugin. It owns no
-Antigravity authentication. The optional Codex-to-`agy` chat bridge never reads
-the keyring itself, but is disabled by default because Google's current terms
-restrict third-party access using Antigravity login.
+The native `agy` bundle and Codex MCP integrations are both project surfaces.
+The optional Codex-to-`agy` bridge never reads the keyring itself and is enabled
+only after explicit user consent.
 
-The direct Code Assist/OAuth modules are legacy compatibility code. They target
-non-public endpoints, are disabled by default, and must not be treated as a
-stable or supported API.
+The direct Code Assist/OAuth modules target non-public endpoints. They are
+consent-gated so the user controls whether that compatibility path is used.
+
+Consent can be recorded through the local `google_antigravity_consent.py`
+script or environment variables. MCP exposes consent status read-only and has
+no tool that can grant, revoke, or modify consent.
 
 ## Local access
 

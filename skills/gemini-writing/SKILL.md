@@ -1,15 +1,14 @@
 ---
 name: gemini-writing
-description: "Use for prose deliverables with the host model; the legacy direct Antigravity writing tool is disabled by default."
+description: "Use consent-gated Antigravity writing for drafting, rewriting, polishing, translating, summaries, PR descriptions, release notes, and documentation."
 ---
 
-# Writing
+# Gemini Writing
 
-Use the host model for drafting, rewriting, polishing, translating, and
-summarizing prose, including PR descriptions, release notes, changelogs,
-README text, emails, announcements, proposals, and product copy.
+After confirming explicit consent, use `google_antigravity_write` for explicit
+prose deliverables. Keep code implementation and factual verification outside
+the writing pass.
 
-Keep implementation and factual verification separate from wording work.
-Verify versions, dates, commands, tests, issue IDs, links, and release claims
-before publication. Do not enable `google_antigravity_write`; it belongs to the
-unsupported direct backend.
+Use the relevant task and profile, keep project context off unless needed, and
+verify versions, dates, commands, tests, issue IDs, links, and release claims
+before publishing the result.

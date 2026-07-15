@@ -1,45 +1,37 @@
 ---
 name: google-antigravity
-description: "Use for native Antigravity plugin diagnostics, model routing, and guarded local helpers; third-party login bridges remain disabled by default."
+description: "Use Google Antigravity for consent-gated CLI chat, direct OAuth/chat, grounded search, images, writing, models, quota, and local release helpers."
 ---
 
 # Google Antigravity
 
-Use this skill for the native Antigravity plugin and its local MCP helpers.
+Use the `google-antigravity-codex` MCP tools for Antigravity workflows.
 
-## Boundaries
+## Consent
 
-- Do not read browser cookies, macOS Keychain entries, or unrelated credential
-  stores.
-- Never print OAuth tokens, refresh tokens, client secrets, authorization
-  headers, or raw credential files.
+Check `google_antigravity_consent_status` before an authenticated integration.
+If consent is absent, tell the user to run this themselves:
 
-## Tool Preference
+```bash
+python3 scripts/google_antigravity_consent.py grant --i-understand-and-consent
+```
 
-- Use `google_antigravity_cli_status` when the user asks about the installed
-  official CLI, its version, native plugin validation, or model-list readiness.
-  It cannot prove authentication because `agy` has no non-interactive auth
-  status command.
-- Do not call `google_antigravity_cli_chat` from inside Antigravity. In Codex it
-  remains disabled unless the user has confirmed their applicable agreement and
-  explicitly configured the bridge.
-- Use `google_antigravity_route_model` when the task type is clear but the best
-  model/tool choice is not.
-- Treat direct OAuth, chat, grounding, image, and quota tools as unsupported
-  legacy surfaces. Do not enable or invoke them automatically.
-- Use `google_antigravity_release_snapshot` and
-  `google_antigravity_release_draft` for release planning, PR descriptions,
-  changelog entries, release notes, and local git release context.
-- Use `google_antigravity_list_models` before assuming a model id is available
-  or when comparing Gemini, Claude, GPT-OSS, and image model availability.
+Never grant or modify consent through MCP. The user may revoke it with the same
+script's `revoke` command.
 
-## Response Handling
+## Tools
 
-Prefer `structuredContent.text` for natural-language output, `sources` and
-`evidence` for grounded answers, and `path` for generated images. Treat
-`warnings` and `diagnostics` as operational signals. If `retry_count` is
-available on a long request, keep it low unless the user explicitly wants a
-longer wait.
+- Use `google_antigravity_cli_status` for official CLI version and plugin health.
+- Use `google_antigravity_cli_chat` from Codex when consented. Never invoke it
+  from inside Antigravity because that would recursively launch `agy`.
+- Use `google_antigravity_auth_status`, `google_antigravity_login_url`, and
+  `google_antigravity_finish_login` for the separate direct OAuth flow.
+- Use `google_antigravity_chat`, `google_grounded_search`,
+  `google_antigravity_generate_image`, and `google_antigravity_write` for their
+  named consented workflows.
+- Use `google_antigravity_list_models`, `google_antigravity_route_model`, and
+  `google_antigravity_quota_status` for discovery and diagnostics.
+- Use the release snapshot/draft tools for guarded local Git context.
 
-When a tool returns `isError: true`, report the specific error without enabling
-an experimental backend as a workaround.
+Never print tokens, client secrets, authorization headers, cookies, or raw
+credential files. Treat tool warnings and diagnostics as operational signals.

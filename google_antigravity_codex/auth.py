@@ -6,8 +6,8 @@ The default flow is intentionally user-mediated:
 2. The user completes Google OAuth in a browser.
 3. `google_antigravity_finish_login` exchanges the pasted callback URL or code.
 
-This unsupported path is disabled by default. No browser cookie or Keychain
-access is used by this module.
+This path requires explicit user consent. No browser cookie or Keychain access
+is used by this module.
 """
 
 from __future__ import annotations
@@ -326,8 +326,9 @@ def _load_pending_login() -> Dict[str, Any]:
 def build_login_url(*, force: bool = False) -> Dict[str, Any]:
     if not security.direct_backend_enabled():
         raise AuthError(
-            "Direct Antigravity OAuth is disabled. Use the official agy CLI, or set "
-            "GOOGLE_ANTIGRAVITY_ENABLE_DIRECT_BACKEND=1 only for isolated compatibility testing.",
+            "Direct Antigravity OAuth requires explicit user consent. Set "
+            "GOOGLE_ANTIGRAVITY_USER_CONSENT=1 to enable all optional integrations, or "
+            "GOOGLE_ANTIGRAVITY_ENABLE_DIRECT_BACKEND=1 for this backend only.",
             code="direct_backend_disabled",
         )
     if not force:
@@ -402,7 +403,7 @@ def extract_authorization_code(raw: str, *, expected_state: str = "") -> str:
 
 def finish_login(code_or_callback_url: str) -> Credentials:
     if not security.direct_backend_enabled():
-        raise AuthError("Direct Antigravity OAuth is disabled.", code="direct_backend_disabled")
+        raise AuthError("Direct Antigravity OAuth requires explicit user consent.", code="direct_backend_disabled")
     pending = _load_pending_login()
     client = require_oauth_client()
     code = extract_authorization_code(code_or_callback_url, expected_state=str(pending.get("state") or ""))
@@ -470,7 +471,7 @@ def refresh_credentials(creds: Credentials) -> Credentials:
 def get_valid_access_token(*, force_refresh: bool = False) -> str:
     if not security.direct_backend_enabled():
         raise AuthError(
-            "Direct Antigravity backend is disabled; use google_antigravity_cli_chat.",
+            "Direct Antigravity backend requires explicit user consent.",
             code="direct_backend_disabled",
         )
     creds = load_credentials()

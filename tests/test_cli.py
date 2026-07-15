@@ -140,6 +140,26 @@ def test_run_prompt_is_disabled_by_default(monkeypatch):
     assert error.value.code == "agy_cli_bridge_disabled"
 
 
+def test_master_user_consent_enables_cli_bridge(monkeypatch):
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_USER_CONSENT", "1")
+    monkeypatch.delenv("GOOGLE_ANTIGRAVITY_ENABLE_CLI_BRIDGE", raising=False)
+    with patch.object(
+        cli,
+        "require_cli",
+        return_value=cli.CliInfo(executable="agy", version="1.1.2", installed=True, compatible=True),
+    ), patch.object(cli, "_run", return_value=completed(stdout="consented\n")):
+        result = cli.run_prompt({"prompt": "hi"})
+    assert result["text"] == "consented"
+
+
+def test_running_under_agy_blocks_nested_cli_even_with_consent(monkeypatch):
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_USER_CONSENT", "1")
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_RUNNING_UNDER_AGY", "1")
+    with pytest.raises(cli.CliError) as error:
+        cli.run_prompt({"prompt": "hi"})
+    assert error.value.code == "agy_cli_recursion_blocked"
+
+
 def test_run_prompt_rejects_unsandboxed_execution(monkeypatch):
     monkeypatch.setenv("GOOGLE_ANTIGRAVITY_ENABLE_CLI_BRIDGE", "1")
     with pytest.raises(cli.CliError) as error:

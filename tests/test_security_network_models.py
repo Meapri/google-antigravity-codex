@@ -67,6 +67,17 @@ def test_security_path_shape_and_bounded_env(tmp_path, monkeypatch):
     assert security.bounded_int_env("LIMIT", 5, minimum=1, maximum=10) == 10
 
 
+def test_master_consent_enables_both_optional_backends(monkeypatch):
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_USER_CONSENT", "1")
+    monkeypatch.delenv("GOOGLE_ANTIGRAVITY_ENABLE_CLI_BRIDGE", raising=False)
+    monkeypatch.delenv("GOOGLE_ANTIGRAVITY_ENABLE_DIRECT_BACKEND", raising=False)
+    assert security.cli_bridge_enabled() is True
+    assert security.direct_backend_enabled() is True
+    status = security.consent_status()
+    assert status["user_consent"] is True
+    assert status["consent_source"] == "GOOGLE_ANTIGRAVITY_USER_CONSENT"
+
+
 def test_models_prefers_direct_then_cli_then_static():
     with patch.object(models.auth, "get_valid_access_token", return_value="token"), patch.object(
         models.client, "fetch_available_models", return_value={"modelIds": ["one", "two"]}

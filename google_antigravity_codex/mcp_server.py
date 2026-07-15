@@ -18,6 +18,7 @@ from . import (
     quota,
     release,
     routing,
+    security,
     writing,
 )
 
@@ -227,10 +228,17 @@ def tool_definitions() -> List[Dict[str, Any]]:
         {
             "name": "google_antigravity_cli_chat",
             "description": (
-                "Experimental Codex-to-agy bridge, disabled by default because Antigravity terms "
-                "restrict third-party login access; requires explicit local opt-in."
+                "Run a non-interactive prompt through the official agy CLI after explicit user consent."
             ),
             "inputSchema": CLI_CHAT_SCHEMA,
+        },
+        {
+            "name": "google_antigravity_consent_status",
+            "description": (
+                "Read the current explicit-consent state and opt-in environment variable names. "
+                "This tool cannot grant or modify consent."
+            ),
+            "inputSchema": _schema_auth_empty(),
         },
         {
             "name": "google_antigravity_auth_status",
@@ -242,17 +250,17 @@ def tool_definitions() -> List[Dict[str, Any]]:
         },
         {
             "name": "google_antigravity_login_url",
-            "description": "Legacy unsupported direct OAuth flow; disabled by default.",
+            "description": "Create a user-mediated direct OAuth login URL after explicit consent.",
             "inputSchema": LOGIN_URL_SCHEMA,
         },
         {
             "name": "google_antigravity_finish_login",
-            "description": "Legacy unsupported OAuth exchange; disabled by default.",
+            "description": "Finish the consented direct OAuth flow from a pasted callback or code.",
             "inputSchema": FINISH_LOGIN_SCHEMA,
         },
         {
             "name": "google_antigravity_chat",
-            "description": "Legacy non-public Code Assist chat path; disabled by default.",
+            "description": "Send a chat request through the consented direct Code Assist path.",
             "inputSchema": CHAT_SCHEMA,
         },
         {
@@ -373,6 +381,10 @@ def dispatch_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     table: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
         "google_antigravity_cli_status": cli.status,
         "google_antigravity_cli_chat": cli.run_prompt,
+        "google_antigravity_consent_status": lambda args: {
+            "text": json.dumps(security.consent_status(), indent=2),
+            **security.consent_status(),
+        },
         "google_antigravity_auth_status": lambda args: {
             "text": json.dumps(auth.auth_status(), indent=2),
             **auth.auth_status(),

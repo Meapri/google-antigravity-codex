@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path
 from typing import Iterable
 
@@ -33,6 +34,7 @@ SENSITIVE_NAMES = {
     ".pypirc",
 }
 TRUE_VALUES = {"1", "true", "yes", "on"}
+CONSENT_FILE_VERSION = 1
 
 
 def env_flag(name: str, *, default: bool = False) -> bool:
@@ -43,15 +45,73 @@ def env_flag(name: str, *, default: bool = False) -> bool:
 
 
 def direct_backend_enabled() -> bool:
-    return env_flag("GOOGLE_ANTIGRAVITY_ENABLE_DIRECT_BACKEND")
+    return user_consent_enabled() or env_flag("GOOGLE_ANTIGRAVITY_ENABLE_DIRECT_BACKEND")
 
 
 def cli_bridge_enabled() -> bool:
-    return env_flag("GOOGLE_ANTIGRAVITY_ENABLE_CLI_BRIDGE")
+    return user_consent_enabled() or env_flag("GOOGLE_ANTIGRAVITY_ENABLE_CLI_BRIDGE")
 
 
 def running_under_agy() -> bool:
     return env_flag("GOOGLE_ANTIGRAVITY_RUNNING_UNDER_AGY")
+
+
+def user_consent_enabled() -> bool:
+    if env_flag("GOOGLE_ANTIGRAVITY_USER_CONSENT"):
+        return True
+    try:
+        data = json.loads(consent_file_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return False
+    return bool(
+        isinstance(data, dict)
+        and data.get("accepted") is True
+        and int(data.get("version") or 0) == CONSENT_FILE_VERSION
+    )
+
+
+def consent_file_path() -> Path:
+    override = os.getenv("GOOGLE_ANTIGRAVITY_CONSENT_FILE", "").strip()
+    if override:
+        return Path(override).expanduser()
+    config = os.getenv("GOOGLE_ANTIGRAVITY_CONFIG_DIR", "").strip()
+    root = Path(config).expanduser() if config else Path.home() / ".config" / "google-antigravity-codex"
+    return root / "user-consent.json"
+
+
+def consent_status() -> dict[str, object]:
+    env_consent = env_flag("GOOGLE_ANTIGRAVITY_USER_CONSENT")
+    file_consent = user_consent_enabled() and not env_consent
+    master = env_consent or file_consent
+    cli_specific = env_flag("GOOGLE_ANTIGRAVITY_ENABLE_CLI_BRIDGE")
+    direct_specific = env_flag("GOOGLE_ANTIGRAVITY_ENABLE_DIRECT_BACKEND")
+    if env_consent:
+        source = "GOOGLE_ANTIGRAVITY_USER_CONSENT"
+    elif file_consent:
+        source = "user-consent.json"
+    elif cli_specific or direct_specific:
+        source = "feature_specific_environment"
+    else:
+        source = "none"
+    return {
+        "user_consent": master,
+        "consent_source": source,
+        "consent_file": str(consent_file_path()),
+        "consent_file_active": file_consent,
+        "cli_bridge_enabled": master or cli_specific,
+        "direct_backend_enabled": master or direct_specific,
+        "running_under_agy": running_under_agy(),
+        "configuration": {
+            "grant_command": (
+                "python3 scripts/google_antigravity_consent.py grant "
+                "--i-understand-and-consent"
+            ),
+            "revoke_command": "python3 scripts/google_antigravity_consent.py revoke",
+            "enable_all": "GOOGLE_ANTIGRAVITY_USER_CONSENT=1",
+            "enable_cli_bridge_only": "GOOGLE_ANTIGRAVITY_ENABLE_CLI_BRIDGE=1",
+            "enable_direct_backend_only": "GOOGLE_ANTIGRAVITY_ENABLE_DIRECT_BACKEND=1",
+        },
+    }
 
 
 def allowed_roots() -> list[Path]:

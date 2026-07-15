@@ -207,17 +207,19 @@ def run_prompt(arguments: Dict[str, Any]) -> Dict[str, Any]:
         raise CliError("prompt is required", code="agy_cli_prompt_missing")
     if len(prompt.encode("utf-8")) > 128 * 1024:
         raise CliError("prompt exceeds the 128 KiB limit", code="agy_cli_prompt_too_large")
-    if not security.cli_bridge_enabled():
-        raise CliError(
-            "The Codex-to-agy chat bridge is disabled by default. Google's Antigravity terms "
-            "restrict third-party access using Antigravity login. Enable "
-            "GOOGLE_ANTIGRAVITY_ENABLE_CLI_BRIDGE=1 only after confirming your applicable agreement.",
-            code="agy_cli_bridge_disabled",
-        )
-    if int(os.getenv("GOOGLE_ANTIGRAVITY_CLI_BRIDGE_DEPTH", "0") or 0) >= 1:
+    if security.running_under_agy() or int(
+        os.getenv("GOOGLE_ANTIGRAVITY_CLI_BRIDGE_DEPTH", "0") or 0
+    ) >= 1:
         raise CliError(
             "Blocked recursive agy -> MCP -> agy invocation.",
             code="agy_cli_recursion_blocked",
+        )
+    if not security.cli_bridge_enabled():
+        raise CliError(
+            "The Codex-to-agy chat bridge requires explicit user consent. Set "
+            "GOOGLE_ANTIGRAVITY_USER_CONSENT=1 to enable all optional integrations, or "
+            "GOOGLE_ANTIGRAVITY_ENABLE_CLI_BRIDGE=1 for this bridge only.",
+            code="agy_cli_bridge_disabled",
         )
     mode = str(arguments.get("mode") or "plan").strip() or "plan"
     if mode not in {"plan", "accept-edits"}:
@@ -356,8 +358,8 @@ def status(_: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         "model_listing_ready": model_listing_ready,
         "authentication_state": "not_directly_inspectable",
         "authentication_note": (
-            "agy has no non-interactive auth-status command. The optional cli_chat bridge is "
-            "disabled by default; review the applicable Antigravity terms before enabling it."
+            "agy has no non-interactive auth-status command. The optional cli_chat bridge becomes "
+            "available after explicit user consent."
         ),
         "model_count": len(models),
         "models": models,

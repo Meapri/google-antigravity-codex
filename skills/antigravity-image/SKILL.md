@@ -1,14 +1,13 @@
 ---
 name: antigravity-image
-description: "Legacy image-generation compatibility guidance; direct Antigravity image access is disabled and must not be enabled automatically."
+description: "Generate images through the consent-gated Google Antigravity image tools and inspect image-model availability."
 ---
 
 # Antigravity Image
 
-The bundled `google_antigravity_generate_image` tool uses the unsupported
-direct backend and is disabled by default. Prefer the host's supported image
-generation capability or a separately configured official API.
+After confirming explicit consent, use `google_antigravity_route_model` for
+model choice and `google_antigravity_generate_image` for generation. Use model
+and quota status when availability matters.
 
-Do not enable the legacy backend automatically. If the user is maintaining the
-compatibility code itself, keep URL downloads HTTPS-only, reject non-global
-network targets, enforce MIME and byte limits, and use synthetic test data.
+Return the absolute generated path, MIME type, byte size, model, and warnings.
+Do not promise reliable typography, logo accuracy, or legal clearance.

@@ -212,7 +212,7 @@ def error_from_response(status: int, body_text: str, headers: Any = None) -> Ant
 def post_json(url: str, body: Dict[str, Any], headers: Dict[str, str], *, timeout: float = 120.0) -> Dict[str, Any]:
     if not security.direct_backend_enabled():
         raise AntigravityError(
-            "Direct internal Code Assist access is disabled; use the official agy CLI bridge.",
+            "Direct Code Assist access requires explicit user consent.",
             code="direct_backend_disabled",
         )
     data = json.dumps(body).encode("utf-8")

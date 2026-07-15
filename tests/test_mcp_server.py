@@ -22,6 +22,7 @@ def test_initialize_and_tools_list():
     names = {tool["name"] for tool in tools["result"]["tools"]}
     assert "google_antigravity_cli_status" in names
     assert "google_antigravity_cli_chat" in names
+    assert "google_antigravity_consent_status" in names
     assert "google_antigravity_chat" in names
     assert "google_grounded_search" in names
     assert "google_antigravity_generate_image" in names
@@ -33,6 +34,23 @@ def test_initialize_and_tools_list():
         tool for tool in tools["result"]["tools"] if tool["name"] == "google_antigravity_release_snapshot"
     )
     assert "check_commands" not in release_tool["inputSchema"]["properties"]
+
+
+def test_consent_status_is_read_only_and_reports_master_opt_in(monkeypatch):
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_USER_CONSENT", "1")
+    response = mcp_server.handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": 8,
+            "method": "tools/call",
+            "params": {"name": "google_antigravity_consent_status", "arguments": {}},
+        }
+    )
+    result = response["result"]["structuredContent"]
+    assert result["user_consent"] is True
+    assert result["cli_bridge_enabled"] is True
+    assert result["direct_backend_enabled"] is True
+    assert "set_consent" not in result
 
 
 def test_cli_error_returns_secret_safe_tool_error():

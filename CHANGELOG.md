@@ -14,5 +14,5 @@ All notable changes are documented in this file.
 ### Changed
 
 - The official CLI is the primary runtime path.
-- Legacy direct Code Assist and OAuth behavior is disabled by default and
-  clearly marked experimental.
+- Direct Code Assist, OAuth, and CLI-bridge behavior is available after
+  explicit user consent, with a durable local grant/revoke workflow.

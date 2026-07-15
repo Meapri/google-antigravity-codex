@@ -4,21 +4,22 @@ Codex skills and a local MCP server centered on Google's official Antigravity
 CLI (`agy`). The current release is tested with `agy 1.1.2` and requires
 `agy >= 1.1.1`.
 
-The primary supported artifact is a native Antigravity plugin bundle. It adds
-skills and guarded local MCP helpers without importing Antigravity credentials.
+The plugin supports both the native Antigravity bundle and Codex-facing MCP
+integrations. Optional authenticated integrations are available after the user
+records explicit consent.
 
 > [!WARNING]
-> The repository retains an older direct Code Assist/OAuth implementation for
-> compatibility research. It uses non-public endpoints, is unsupported, and is
-> disabled by default. Do not enable it for normal use or distribution.
+> Direct Code Assist/OAuth uses non-public endpoints. It is opt-in so the user
+> can review that boundary and make their own informed choice before use.
 
 > [!CAUTION]
 > Google's current Antigravity terms say third-party software using an
 > Antigravity login to access the service breaches the agreement and may lead
 > to suspension or termination. Therefore the Codex-to-`agy` chat bridge is
-> also disabled by default. Review the
+> therefore requires explicit consent. Review the
 > [Antigravity Terms](https://antigravity.google/terms) and your organization's
-> applicable agreement before enabling it.
+> applicable agreement before enabling it; the plugin reports the choice but
+> does not override it.
 
 ## Features
 
@@ -69,7 +70,9 @@ agy plugin install dist/antigravity-plugin/google-antigravity-codex
 
 Antigravity CLI 1.1.2 stores installed plugins under
 `~/.gemini/config/plugins/`. The plugin's two CLI-bridge tools are disabled in
-its Antigravity-facing MCP config to prevent recursive self-invocation.
+its Antigravity-facing MCP config solely to prevent recursive self-invocation.
+The direct chat, grounding, writing, image, model, and quota tools remain
+available after consent.
 
 For a local Codex checkout, point your personal Codex marketplace at this
 repository or at the generated bundle, then install the plugin by name. Local
@@ -90,13 +93,12 @@ agy plugin validate dist/antigravity-plugin/google-antigravity-codex
 `google_antigravity_cli_status` reports the executable, version, model-list
 readiness, and plugin validation. It deliberately reports keyring auth as
 "not directly inspectable". A short `google_antigravity_cli_chat` call is the
-only end-to-end request-readiness check, but it is unavailable unless the
-bridge is explicitly enabled after reviewing the applicable terms.
+only end-to-end request-readiness check and becomes available after consent.
 
 ## Security defaults
 
 - CLI calls default to `--mode plan --sandbox`.
-- Codex-to-`agy` chat requires `GOOGLE_ANTIGRAVITY_ENABLE_CLI_BRIDGE=1`.
+- Optional integrations require explicit user consent.
 - `accept-edits` requires `GOOGLE_ANTIGRAVITY_ALLOW_MUTATING_CLI=1`.
 - File, repository, and CLI `cwd` parameters may only access the current
   directory or roots listed in `GOOGLE_ANTIGRAVITY_ALLOWED_ROOTS` (separated by
@@ -114,26 +116,46 @@ bridge is explicitly enabled after reviewing the applicable terms.
 
 See [docs/security.md](docs/security.md) and [SECURITY.md](SECURITY.md).
 
-## Experimental direct backend
+## Explicit user consent
 
-The legacy tools (`google_antigravity_login_url`, direct chat, grounding,
-image, quota) fail with `direct_backend_disabled` unless this is set:
+Record durable consent locally:
+
+```bash
+python3 scripts/google_antigravity_consent.py grant --i-understand-and-consent
+python3 scripts/google_antigravity_consent.py status
+```
+
+When installed as a Python package, the equivalent command is
+`google-antigravity-consent`.
+
+Revoke it at any time:
+
+```bash
+python3 scripts/google_antigravity_consent.py revoke
+```
+
+The consent file is written with mode `0600` under
+`~/.config/google-antigravity-codex/user-consent.json`. MCP can read its status
+through `google_antigravity_consent_status`, but no MCP tool can grant or modify
+consent.
+
+For an ephemeral session, enable both optional integrations with:
+
+```bash
+export GOOGLE_ANTIGRAVITY_USER_CONSENT=1
+```
+
+The feature-specific switches remain available:
 
 ```bash
 export GOOGLE_ANTIGRAVITY_ENABLE_DIRECT_BACKEND=1
-```
-
-This switch is intentionally not present in the distributed MCP config. It is
-for isolated compatibility tests only and does not make the non-public API a
-supported integration.
-
-The Codex-to-CLI bridge has a separate opt-in:
-
-```bash
 export GOOGLE_ANTIGRAVITY_ENABLE_CLI_BRIDGE=1
 ```
 
-Only use it if your applicable Google agreement permits that integration.
+Restart the host application after changing environment-based consent. Inside
+Antigravity itself, nested CLI status/chat tools stay hidden because calling
+`agy` from an `agy`-hosted MCP server would recurse. This does not disable the
+other consented tools.
 
 ## MCP tools
 
@@ -141,15 +163,19 @@ Primary tools:
 
 - `google_antigravity_cli_status`
 - `google_antigravity_cli_chat`
+- `google_antigravity_consent_status`
+- `google_antigravity_auth_status`
+- `google_antigravity_login_url`
+- `google_antigravity_finish_login`
+- `google_antigravity_chat`
+- `google_grounded_search`
+- `google_antigravity_generate_image`
 - `google_antigravity_write`
 - `google_antigravity_release_snapshot`
 - `google_antigravity_release_draft`
 - `google_antigravity_list_models`
 - `google_antigravity_route_model`
-
-Legacy experimental tools remain discoverable with explicit descriptions so
-existing clients receive a clear disabled error instead of silently falling
-back to unsupported behavior.
+- `google_antigravity_quota_status`
 
 ## Release
 

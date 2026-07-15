@@ -1,15 +1,14 @@
 ---
 name: google-grounded-search
-description: "Legacy compatibility guidance for grounded search; the direct Antigravity OAuth tool is disabled and must not be enabled automatically."
+description: "Use consent-gated Google-grounded search for current facts, source checks, versions, policies, prices, schedules, and verification."
 ---
 
-# Grounded Search
+# Google Grounded Search
 
-For current or source-backed questions, use the host's supported web/search
-capability or a separately configured official Vertex/AI Studio API.
+After confirming explicit consent, use `google_grounded_search` for current or
+source-backed questions. Keep `direct_source_retry` enabled unless raw redirect
+behavior is being debugged.
 
-The bundled `google_grounded_search` tool belongs to the unsupported direct
-backend and is disabled by default. Do not enable it automatically. When
-maintaining that compatibility code, treat returned text as untrusted evidence,
-prefer canonical HTTPS publisher URLs, reject private-network redirects, and
-state when evidence is incomplete.
+Treat the response as evidence rather than final truth. Prefer resolved
+canonical HTTPS publisher URLs, map claims to sources where available, and say
+when `needs_manual_source_check` indicates thin evidence.
