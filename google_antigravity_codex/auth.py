@@ -1,4 +1,4 @@
-"""Google Antigravity OAuth for the Codex plugin.
+"""Legacy experimental Google Antigravity OAuth compatibility code.
 
 The default flow is intentionally user-mediated:
 
@@ -6,7 +6,8 @@ The default flow is intentionally user-mediated:
 2. The user completes Google OAuth in a browser.
 3. `google_antigravity_finish_login` exchanges the pasted callback URL or code.
 
-No browser cookie or Keychain access is used by this module.
+This unsupported path is disabled by default. No browser cookie or Keychain
+access is used by this module.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
 
-from . import paths
+from . import paths, security
 
 PROVIDER_ID = "google-antigravity"
 AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/auth"
@@ -323,6 +324,12 @@ def _load_pending_login() -> Dict[str, Any]:
 
 
 def build_login_url(*, force: bool = False) -> Dict[str, Any]:
+    if not security.direct_backend_enabled():
+        raise AuthError(
+            "Direct Antigravity OAuth is disabled. Use the official agy CLI, or set "
+            "GOOGLE_ANTIGRAVITY_ENABLE_DIRECT_BACKEND=1 only for isolated compatibility testing.",
+            code="direct_backend_disabled",
+        )
     if not force:
         existing = load_credentials()
         if existing and existing.access_token and not existing.is_expired():
@@ -394,6 +401,8 @@ def extract_authorization_code(raw: str, *, expected_state: str = "") -> str:
 
 
 def finish_login(code_or_callback_url: str) -> Credentials:
+    if not security.direct_backend_enabled():
+        raise AuthError("Direct Antigravity OAuth is disabled.", code="direct_backend_disabled")
     pending = _load_pending_login()
     client = require_oauth_client()
     code = extract_authorization_code(code_or_callback_url, expected_state=str(pending.get("state") or ""))
@@ -459,6 +468,11 @@ def refresh_credentials(creds: Credentials) -> Credentials:
 
 
 def get_valid_access_token(*, force_refresh: bool = False) -> str:
+    if not security.direct_backend_enabled():
+        raise AuthError(
+            "Direct Antigravity backend is disabled; use google_antigravity_cli_chat.",
+            code="direct_backend_disabled",
+        )
     creds = load_credentials()
     if creds is None:
         raise AuthError("No Google Antigravity credentials found. Run google_antigravity_login_url first.", code="not_logged_in")
@@ -496,6 +510,8 @@ def auth_status() -> Dict[str, Any]:
     logged_in = bool(creds and creds.access_token and (creds.refresh_token or not creds.is_expired()))
     return {
         "provider": PROVIDER_ID,
+        "direct_backend_enabled": security.direct_backend_enabled(),
+        "experimental": True,
         "logged_in": logged_in,
         "client_configured": client is not None,
         "client_source": client.source if client else "",

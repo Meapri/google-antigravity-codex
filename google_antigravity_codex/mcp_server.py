@@ -6,10 +6,25 @@ import json
 import sys
 from typing import Any, Callable, Dict, List
 
-from . import auth, chat, client, grounding, image, models, quota, release, routing, writing
+from . import (
+    __version__,
+    auth,
+    chat,
+    cli,
+    client,
+    grounding,
+    image,
+    models,
+    quota,
+    release,
+    routing,
+    writing,
+)
 
 SERVER_NAME = "google-antigravity-codex"
-SERVER_VERSION = "0.4.0+codex.20260605185719"
+SERVER_VERSION = __version__
+SUPPORTED_PROTOCOL_VERSIONS = {"2024-11-05", "2025-03-26", "2025-06-18"}
+DEFAULT_PROTOCOL_VERSION = "2024-11-05"
 
 
 def _schema_auth_empty() -> Dict[str, Any]:
@@ -40,7 +55,11 @@ GROUNDING_SCHEMA: Dict[str, Any] = {
         "query": {"type": "string"},
         "model": {"type": "string", "default": chat.DEFAULT_MODEL},
         "max_sources": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5},
-        "freshness": {"type": "string", "enum": ["auto", "latest", "today", "week", "month", "official"], "default": "auto"},
+        "freshness": {
+            "type": "string",
+            "enum": ["auto", "latest", "today", "week", "month", "official"],
+            "default": "auto",
+        },
         "language": {"type": "string", "default": "ko"},
         "resolve_sources": {"type": "boolean", "default": True},
         "direct_source_retry": {"type": "boolean", "default": True},
@@ -57,7 +76,11 @@ IMAGE_SCHEMA: Dict[str, Any] = {
     "properties": {
         "prompt": {"type": "string"},
         "model": {"type": "string", "default": image.DEFAULT_MODEL},
-        "aspect_ratio": {"type": "string", "enum": ["landscape", "square", "portrait"], "default": "landscape"},
+        "aspect_ratio": {
+            "type": "string",
+            "enum": ["landscape", "square", "portrait"],
+            "default": "landscape",
+        },
         "image_size": {"type": "string", "enum": ["512", "1K", "2K", "4K", "1024", "2048", "4096"]},
         "timeout_sec": {"type": "integer", "minimum": 20, "maximum": 600},
         "retry_count": {"type": "integer", "minimum": 0, "maximum": 5, "default": 1},
@@ -117,8 +140,6 @@ RELEASE_SNAPSHOT_SCHEMA: Dict[str, Any] = {
         "repo": {"type": "string", "default": "."},
         "base_ref": {"type": "string"},
         "head_ref": {"type": "string", "default": "HEAD"},
-        "check_commands": {"type": "array", "items": {"type": "string"}},
-        "check_timeout_sec": {"type": "integer", "minimum": 1, "maximum": 3600},
     },
     "additionalProperties": False,
 }
@@ -161,10 +182,34 @@ ROUTE_MODEL_SCHEMA: Dict[str, Any] = {
         },
         "intent": {"type": "string"},
         "preferred_model": {"type": "string"},
-        "speed": {"type": "string", "enum": ["balanced", "fast", "low-latency", "quality"], "default": "balanced"},
+        "speed": {
+            "type": "string",
+            "enum": ["balanced", "fast", "low-latency", "quality"],
+            "default": "balanced",
+        },
         "grounding": {"type": "string", "enum": ["off", "auto", "always", "required"]},
         "image": {"type": "boolean"},
     },
+    "additionalProperties": False,
+}
+
+CLI_CHAT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "prompt": {"type": "string"},
+        "model": {"type": "string"},
+        "agent": {"type": "string"},
+        "mode": {"type": "string", "enum": ["accept-edits", "plan"], "default": "plan"},
+        "sandbox": {"type": "boolean", "default": True},
+        "cwd": {"type": "string"},
+        "timeout_sec": {
+            "type": "integer",
+            "minimum": 20,
+            "maximum": 1800,
+            "default": 300,
+        },
+    },
+    "required": ["prompt"],
     "additionalProperties": False,
 }
 
@@ -172,23 +217,42 @@ ROUTE_MODEL_SCHEMA: Dict[str, Any] = {
 def tool_definitions() -> List[Dict[str, Any]]:
     return [
         {
+            "name": "google_antigravity_cli_status",
+            "description": (
+                "Check official agy CLI version, model-list readiness, and native plugin "
+                "validity without directly reading the keyring."
+            ),
+            "inputSchema": _schema_auth_empty(),
+        },
+        {
+            "name": "google_antigravity_cli_chat",
+            "description": (
+                "Experimental Codex-to-agy bridge, disabled by default because Antigravity terms "
+                "restrict third-party login access; requires explicit local opt-in."
+            ),
+            "inputSchema": CLI_CHAT_SCHEMA,
+        },
+        {
             "name": "google_antigravity_auth_status",
-            "description": "Check Google Antigravity Codex OAuth status without returning tokens.",
+            "description": (
+                "Check the plugin's optional direct OAuth status without returning tokens "
+                "(separate from agy keyring auth)."
+            ),
             "inputSchema": _schema_auth_empty(),
         },
         {
             "name": "google_antigravity_login_url",
-            "description": "Create a user-mediated Google Antigravity OAuth login URL.",
+            "description": "Legacy unsupported direct OAuth flow; disabled by default.",
             "inputSchema": LOGIN_URL_SCHEMA,
         },
         {
             "name": "google_antigravity_finish_login",
-            "description": "Finish OAuth by exchanging a pasted authorization code or callback URL.",
+            "description": "Legacy unsupported OAuth exchange; disabled by default.",
             "inputSchema": FINISH_LOGIN_SCHEMA,
         },
         {
             "name": "google_antigravity_chat",
-            "description": "Send a chat request through Google Antigravity Code Assist.",
+            "description": "Legacy non-public Code Assist chat path; disabled by default.",
             "inputSchema": CHAT_SCHEMA,
         },
         {
@@ -242,7 +306,9 @@ def _text_result(text: str, structured: Dict[str, Any], *, is_error: bool = Fals
     }
 
 
-def _safe_call(func: Callable[[Dict[str, Any]], Dict[str, Any]], arguments: Dict[str, Any]) -> Dict[str, Any]:
+def _safe_call(
+    func: Callable[[Dict[str, Any]], Dict[str, Any]], arguments: Dict[str, Any]
+) -> Dict[str, Any]:
     try:
         data = func(arguments)
         text = data.get("text") or data.get("answer") or json.dumps(data, ensure_ascii=False, indent=2)
@@ -265,8 +331,23 @@ def _safe_call(func: Callable[[Dict[str, Any]], Dict[str, Any]], arguments: Dict
             },
             is_error=True,
         )
+    except cli.CliError as exc:
+        return _text_result(
+            str(exc),
+            {
+                "error_type": exc.code,
+                "returncode": exc.returncode,
+                "provider": "google-antigravity",
+                "backend": "agy-cli",
+            },
+            is_error=True,
+        )
     except Exception as exc:
-        return _text_result(str(exc), {"error_type": type(exc).__name__, "provider": "google-antigravity"}, is_error=True)
+        return _text_result(
+            str(exc),
+            {"error_type": type(exc).__name__, "provider": "google-antigravity"},
+            is_error=True,
+        )
 
 
 def _login_url(arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -290,7 +371,12 @@ def _finish_login(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 def dispatch_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     table: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
-        "google_antigravity_auth_status": lambda args: {"text": json.dumps(auth.auth_status(), indent=2), **auth.auth_status()},
+        "google_antigravity_cli_status": cli.status,
+        "google_antigravity_cli_chat": cli.run_prompt,
+        "google_antigravity_auth_status": lambda args: {
+            "text": json.dumps(auth.auth_status(), indent=2),
+            **auth.auth_status(),
+        },
         "google_antigravity_login_url": _login_url,
         "google_antigravity_finish_login": _finish_login,
         "google_antigravity_chat": chat.run_chat,
@@ -315,11 +401,20 @@ def handle_request(message: Dict[str, Any]) -> Dict[str, Any] | None:
     method = message.get("method")
     try:
         if method == "initialize":
+            params = message.get("params") or {}
+            requested_protocol = str(params.get("protocolVersion") or DEFAULT_PROTOCOL_VERSION)
+            selected_protocol = (
+                requested_protocol
+                if requested_protocol in SUPPORTED_PROTOCOL_VERSIONS
+                else DEFAULT_PROTOCOL_VERSION
+            )
             result = {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": selected_protocol,
                 "capabilities": {"tools": {}},
                 "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
             }
+        elif method == "ping":
+            result = {}
         elif method == "tools/list":
             result = {"tools": tool_definitions()}
         elif method == "tools/call":

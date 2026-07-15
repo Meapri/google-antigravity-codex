@@ -6,18 +6,19 @@ from dataclasses import dataclass, field
 import json
 import os
 import re
+import shutil
+import subprocess
 import time
 import urllib.error
 import urllib.request
 import uuid
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from . import auth
+from . import __version__, auth, security
 
 ANTIGRAVITY_ENDPOINT_PROD = "https://cloudcode-pa.googleapis.com"
 ANTIGRAVITY_ENDPOINT_FALLBACKS = (ANTIGRAVITY_ENDPOINT_PROD,)
-ANTIGRAVITY_VERSION_FALLBACK = "2.0.1"
-ANTIGRAVITY_VERSION_URL = "https://antigravity-auto-updater-974169037036.us-central1.run.app"
+ANTIGRAVITY_VERSION_FALLBACK = "1.1.2"
 ANTIGRAVITY_VERSION_CACHE_TTL_SECONDS = 6 * 60 * 60
 GOOGLE_ONE_AI_CREDIT_TYPE = "GOOGLE_ONE_AI"
 FREE_TIER_ID = "free-tier"
@@ -114,23 +115,32 @@ def resolve_antigravity_version(*, refresh: bool = False) -> str:
     now = time.time()
     if not refresh and now - float(_VERSION_CACHE.get("fetched_at") or 0.0) < ANTIGRAVITY_VERSION_CACHE_TTL_SECONDS:
         return str(_VERSION_CACHE.get("version") or ANTIGRAVITY_VERSION_FALLBACK)
-    try:
-        with urllib.request.urlopen(ANTIGRAVITY_VERSION_URL, timeout=5.0) as response:
-            text = response.read().decode("utf-8", errors="replace")
-        version = _parse_antigravity_version(text) or ANTIGRAVITY_VERSION_FALLBACK
-    except Exception:
-        version = ANTIGRAVITY_VERSION_FALLBACK
+    version = ANTIGRAVITY_VERSION_FALLBACK
+    executable = os.getenv("GOOGLE_ANTIGRAVITY_CLI", "").strip() or shutil.which("agy")
+    if executable:
+        try:
+            result = subprocess.run(
+                [executable, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5.0,
+                check=False,
+            )
+            version = _parse_antigravity_version(
+                f"{result.stdout}\n{result.stderr}"
+            ) or ANTIGRAVITY_VERSION_FALLBACK
+        except (OSError, subprocess.SubprocessError):
+            pass
     _VERSION_CACHE.update({"version": version, "fetched_at": now})
     return version
 
 
 def antigravity_headers(*, access_token: str = "", refresh_version: bool = False) -> Dict[str, str]:
-    version = resolve_antigravity_version(refresh=refresh_version)
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "User-Agent": f"Antigravity/{version} Chrome/138.0.0.0 Electron/37.0.0",
-        "X-Goog-Api-Client": f"antigravity-cli/{version}",
+        "User-Agent": f"google-antigravity-codex/{__version__}",
+        "X-Goog-Api-Client": f"google-antigravity-codex/{__version__}",
     }
     if access_token:
         headers["Authorization"] = f"Bearer {access_token}"
@@ -200,6 +210,11 @@ def error_from_response(status: int, body_text: str, headers: Any = None) -> Ant
 
 
 def post_json(url: str, body: Dict[str, Any], headers: Dict[str, str], *, timeout: float = 120.0) -> Dict[str, Any]:
+    if not security.direct_backend_enabled():
+        raise AntigravityError(
+            "Direct internal Code Assist access is disabled; use the official agy CLI bridge.",
+            code="direct_backend_disabled",
+        )
     data = json.dumps(body).encode("utf-8")
     request = urllib.request.Request(url, data=data, method="POST", headers=headers)
     try:

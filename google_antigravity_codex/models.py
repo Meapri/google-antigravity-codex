@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-from . import auth, client, image, response
+from . import auth, cli, client, image, response, security
 
 
 def list_models(_: Dict[str, Any] | None = None) -> Dict[str, Any]:
@@ -21,13 +21,24 @@ def list_models(_: Dict[str, Any] | None = None) -> Dict[str, Any]:
         image_models = image.list_models()
         source = "fetchAvailableModels"
     except Exception:
-        text_models = client.static_model_catalog()
+        if security.running_under_agy():
+            text_models = client.static_model_catalog()
+            source = "static_fallback"
+        else:
+            try:
+                text_models = cli.list_models()
+                source = "agy_cli"
+            except Exception:
+                text_models = client.static_model_catalog()
+                source = "static_fallback"
         image_models = image.list_models()
-        source = "static_fallback"
     return {
         "text": f"Listed {len(text_models)} text models and {len(image_models)} image models.",
         "text_models": text_models,
         "image_models": image_models,
         "source": source,
-        **response.standard_fields(warnings=[] if source != "static_fallback" else ["model_list_static_fallback"]),
+        **response.standard_fields(
+            backend="agy-cli" if source == "agy_cli" else "code-assist",
+            warnings=[] if source != "static_fallback" else ["model_list_static_fallback"],
+        ),
     }

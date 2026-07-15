@@ -44,8 +44,8 @@ Example:
 ```json
 {
   "repo": ".",
-  "check_commands": ["git diff --check"],
-  "polish": true
+  "repo": ".",
+  "polish": false
 }
 ```
 
@@ -55,3 +55,6 @@ This integrated skill drafts release artifacts only. It does not create tags,
 push tags, or publish GitHub releases. Codex may run those commands only after
 explicit user approval and after verifying the working tree, tag name, release
 notes, and authentication state.
+
+Run verification commands separately. MCP release tools deliberately do not
+accept arbitrary `check_commands`.

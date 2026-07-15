@@ -1,307 +1,161 @@
 # Google Antigravity Codex
 
-Independent Codex plugin and MCP stdio server for Google Antigravity OAuth,
-chat, native Google-grounded search, writing, release drafting, image
-generation, model listing, and quota status.
+Codex skills and a local MCP server centered on Google's official Antigravity
+CLI (`agy`). The current release is tested with `agy 1.1.2` and requires
+`agy >= 1.1.1`.
 
-It provides its own Codex-facing plugin surface, MCP tools, OAuth storage,
-grounded-search workflow, writing helper, release helper, and image cache.
+The primary supported artifact is a native Antigravity plugin bundle. It adds
+skills and guarded local MCP helpers without importing Antigravity credentials.
 
-It now absorbs the useful Codex-facing surfaces of:
+> [!WARNING]
+> The repository retains an older direct Code Assist/OAuth implementation for
+> compatibility research. It uses non-public endpoints, is unsupported, and is
+> disabled by default. Do not enable it for normal use or distribution.
 
-- Google Grounded Search Copilot
-- Gemini Writing Copilot
-- Release Copilot
+> [!CAUTION]
+> Google's current Antigravity terms say third-party software using an
+> Antigravity login to access the service breaches the agreement and may lead
+> to suspension or termination. Therefore the Codex-to-`agy` chat bridge is
+> also disabled by default. Review the
+> [Antigravity Terms](https://antigravity.google/terms) and your organization's
+> applicable agreement before enabling it.
 
-The integrated workflows use this plugin's Antigravity OAuth and MCP server
-directly.
+## Features
 
-It also includes focused Codex skills for coding, code review, model routing,
-doctor checks, image generation, grounded search, writing, and release work.
+- `agy models` and `agy plugin validate` diagnostics
+- MCP tools for CLI status/chat, guarded writing context, release snapshots,
+  model routing, and diagnostics
+- Native Antigravity `plugin.json`, `mcp_config.json`, and Agent Skills
+- Recursion protection for `agy -> MCP -> agy`
+- Allowlisted local paths, sensitive-file blocking, bounded image downloads,
+  and private-network URL rejection
+- Clean POSIX and Windows plugin bundles
 
-## Install
+## Install the official CLI
 
-### Install From GitHub Marketplace Source
-
-```bash
-codex plugin marketplace add Meapri/google-antigravity-codex --ref main
-codex plugin add google-antigravity-codex@google-antigravity-codex
-```
-
-### Install From A Local Clone
-
-If you already have a local checkout, register it in your personal marketplace
-and then install by name:
-
-```bash
-mkdir -p ~/plugins
-ln -sfn /path/to/google-antigravity-codex ~/plugins/google-antigravity-codex
-```
-
-Add this entry to `~/.agents/plugins/marketplace.json`:
-
-```json
-{
-  "name": "google-antigravity-codex",
-  "source": {
-    "source": "local",
-    "path": "./plugins/google-antigravity-codex"
-  },
-  "policy": {
-    "installation": "AVAILABLE",
-    "authentication": "ON_INSTALL"
-  },
-  "category": "Developer Tools"
-}
-```
-
-Then run:
+macOS or Linux:
 
 ```bash
-codex plugin add google-antigravity-codex@personal
+curl -fsSL https://antigravity.google/cli/install.sh | bash
 ```
 
-## Configure OAuth
+Windows PowerShell:
 
-Set an Antigravity OAuth client through environment variables:
+```powershell
+irm https://antigravity.google/cli/install.ps1 | iex
+```
+
+See Google's [CLI installation guide](https://antigravity.google/docs/cli-install)
+for authentication and enterprise setup.
+
+## Build and install the plugin
+
+Build from an allowlist so `.git`, tests, caches, build output, and local
+credentials cannot enter the installed plugin:
 
 ```bash
-export GOOGLE_ANTIGRAVITY_CLIENT_ID="..."
-export GOOGLE_ANTIGRAVITY_CLIENT_SECRET="..."
+python3 scripts/build_plugin_bundle.py
+agy plugin validate dist/antigravity-plugin/google-antigravity-codex
+agy plugin install dist/antigravity-plugin/google-antigravity-codex
 ```
 
-or write:
+On Windows:
 
-```text
-~/.config/google-antigravity-codex/oauth_client.json
+```powershell
+py -3 scripts/build_plugin_bundle.py --platform windows
+agy plugin validate dist/antigravity-plugin/google-antigravity-codex
+agy plugin install dist/antigravity-plugin/google-antigravity-codex
 ```
 
-with:
+Antigravity CLI 1.1.2 stores installed plugins under
+`~/.gemini/config/plugins/`. The plugin's two CLI-bridge tools are disabled in
+its Antigravity-facing MCP config to prevent recursive self-invocation.
 
-```json
-{
-  "client_id": "your-client-id.apps.googleusercontent.com",
-  "client_secret": "your-client-secret"
-}
+For a local Codex checkout, point your personal Codex marketplace at this
+repository or at the generated bundle, then install the plugin by name. Local
+repository helpers work without Antigravity authentication.
+
+## Verify
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e '.[dev]'
+.venv/bin/python -m pytest --cov=google_antigravity_codex
+.venv/bin/ruff check .
+.venv/bin/python -m build
+python3 scripts/google_antigravity_doctor.py --json
+agy plugin validate dist/antigravity-plugin/google-antigravity-codex
 ```
 
-Then use the MCP tools:
+`google_antigravity_cli_status` reports the executable, version, model-list
+readiness, and plugin validation. It deliberately reports keyring auth as
+"not directly inspectable". A short `google_antigravity_cli_chat` call is the
+only end-to-end request-readiness check, but it is unavailable unless the
+bridge is explicitly enabled after reviewing the applicable terms.
 
-1. `google_antigravity_login_url`
-2. Open the returned URL and sign in.
-3. Paste the callback URL or authorization code into
-   `google_antigravity_finish_login`.
-4. Check `google_antigravity_auth_status`.
+## Security defaults
 
-Credentials are stored at:
+- CLI calls default to `--mode plan --sandbox`.
+- Codex-to-`agy` chat requires `GOOGLE_ANTIGRAVITY_ENABLE_CLI_BRIDGE=1`.
+- `accept-edits` requires `GOOGLE_ANTIGRAVITY_ALLOW_MUTATING_CLI=1`.
+- File, repository, and CLI `cwd` parameters may only access the current
+  directory or roots listed in `GOOGLE_ANTIGRAVITY_ALLOWED_ROOTS` (separated by
+  the platform path separator).
+- Common secret paths such as `.env`, `.ssh`, `.aws`, `.netrc`, and credential
+  files remain blocked even inside an allowed root.
+- MCP release tools never accept arbitrary check commands. Direct library use
+  requires `GOOGLE_ANTIGRAVITY_ALLOW_CHECK_COMMANDS=1`, and commands run without
+  a shell.
+- Image payloads are limited to 10 MiB by default. URL downloads require HTTPS,
+  an image MIME type, and globally routable DNS results.
+- Prompts passed to `agy --print` are command-line arguments and may be visible
+  to same-user process inspection on some operating systems. Do not put secrets
+  in prompts.
 
-```text
-~/.config/google-antigravity-codex/credentials.json
+See [docs/security.md](docs/security.md) and [SECURITY.md](SECURITY.md).
+
+## Experimental direct backend
+
+The legacy tools (`google_antigravity_login_url`, direct chat, grounding,
+image, quota) fail with `direct_backend_disabled` unless this is set:
+
+```bash
+export GOOGLE_ANTIGRAVITY_ENABLE_DIRECT_BACKEND=1
 ```
 
-Generated images are cached under:
+This switch is intentionally not present in the distributed MCP config. It is
+for isolated compatibility tests only and does not make the non-public API a
+supported integration.
 
-```text
-~/.cache/google-antigravity-codex/images/
+The Codex-to-CLI bridge has a separate opt-in:
+
+```bash
+export GOOGLE_ANTIGRAVITY_ENABLE_CLI_BRIDGE=1
 ```
 
-## Agent Handoff Prompt
+Only use it if your applicable Google agreement permits that integration.
 
-Paste this into another Codex or coding agent when you want it to install,
-configure, and verify this plugin on a machine:
+## MCP tools
 
-```text
-Set up Google Antigravity Codex as the single Codex plugin for Antigravity
-chat, Google-grounded search, image generation, writing, release drafting,
-model listing, and quota checks.
+Primary tools:
 
-Repository: https://github.com/Meapri/google-antigravity-codex
-
-Important boundaries:
-- Use this repository's Codex plugin and MCP server as the only runtime surface.
-- Do not use API keys, browser profile import, Chrome extension login, macOS
-  Keychain scraping, or unrelated local credential stores.
-- Never print OAuth tokens, refresh tokens, client secrets, authorization
-  headers, cookies, or raw credential files.
-
-Use a persistent clone at ~/Git/google-antigravity-codex:
-1. If ~/Git/google-antigravity-codex exists, inspect `git status --short`.
-   If clean, run `git fetch origin && git pull --ff-only origin main`.
-   If dirty, do not overwrite local changes; continue with the current
-   checkout and report that pull was skipped.
-2. If the clone does not exist, run:
-   `git clone https://github.com/Meapri/google-antigravity-codex.git ~/Git/google-antigravity-codex`
-3. Ensure `~/plugins/google-antigravity-codex` points at the clone:
-   `mkdir -p ~/plugins && ln -sfn ~/Git/google-antigravity-codex ~/plugins/google-antigravity-codex`
-4. Ensure `~/.agents/plugins/marketplace.json` contains a `personal`
-   marketplace entry for `google-antigravity-codex` with local path
-   `./plugins/google-antigravity-codex`. Preserve other marketplace entries.
-5. Run:
-   `codex plugin add google-antigravity-codex@personal`
-
-OAuth setup:
-- If `~/.config/google-antigravity-codex/oauth_client.json` already exists,
-  inspect only booleans and field lengths, not secret values.
-- Otherwise, ask the user for a Google Antigravity OAuth client id and client
-  secret, then write them to
-  `~/.config/google-antigravity-codex/oauth_client.json` with mode `0600`.
-- If the user explicitly asks to migrate from another credential store, copy
-  only the minimum OAuth client or token fields needed and never print their
-  values.
-
-Verification:
-1. Run in the clone:
-   `python3 -m venv .venv`
-   `.venv/bin/python -m pip install -e '.[dev]'`
-   `.venv/bin/python -m pytest -q`
-   `python3 -m compileall google_antigravity_codex scripts tests`
-   `python3 -m json.tool .codex-plugin/plugin.json`
-   `python3 -m json.tool .mcp.json`
-2. From the installed plugin cache or clone, verify MCP stdio:
-   - `initialize` returns server name `google-antigravity-codex`.
-   - `tools/list` includes these tools:
-     `google_antigravity_auth_status`,
-     `google_antigravity_login_url`,
-     `google_antigravity_finish_login`,
-     `google_antigravity_chat`,
-     `google_grounded_search`,
-     `google_antigravity_generate_image`,
-     `google_antigravity_write`,
-     `google_antigravity_release_snapshot`,
-     `google_antigravity_release_draft`,
-     `google_antigravity_list_models`,
-     `google_antigravity_route_model`,
-     `google_antigravity_quota_status`.
-3. Run `google_antigravity_auth_status`.
-   If not logged in, call `google_antigravity_login_url`, open the returned URL,
-   ask the user to paste the callback URL or authorization code, then call
-   `google_antigravity_finish_login`.
-4. With credentials present, run short smoke checks:
-   - chat: ask for exactly `AGC_OK`
-   - grounded search: ask for the official OpenAI website URL
-   - writing: polish one short sentence
-   - release snapshot: run on the current repo
-   - model list and quota status
-   - image generation with a simple no-text shape prompt
-5. Report versions, tool names, pass/fail results, masked email presence,
-   project id presence, paid tier name if available, generated image path, and
-   any residual risk. Do not print secrets.
-```
-
-## MCP Tools
-
-- `google_antigravity_auth_status`
-- `google_antigravity_login_url`
-- `google_antigravity_finish_login`
-- `google_antigravity_chat`
-- `google_grounded_search`
-- `google_antigravity_generate_image`
+- `google_antigravity_cli_status`
+- `google_antigravity_cli_chat`
 - `google_antigravity_write`
 - `google_antigravity_release_snapshot`
 - `google_antigravity_release_draft`
 - `google_antigravity_list_models`
 - `google_antigravity_route_model`
-- `google_antigravity_quota_status`
 
-Most tools return a common MCP-friendly envelope:
+Legacy experimental tools remain discoverable with explicit descriptions so
+existing clients receive a clear disabled error instead of silently falling
+back to unsupported behavior.
 
-- `success`
-- `text`
-- `provider`
-- `backend`
-- `model` when applicable
-- `usage` when reported by the backend
-- `warnings`
-- `diagnostics`
+## Release
 
-Grounded search also returns `sources`, `source_summary`, `numeric_claims`,
-`evidence`, and `quality_signals`. Image generation returns both `image` and
-`path`, plus `size_bytes` and `mime_type`.
+Version history is in [CHANGELOG.md](CHANGELOG.md). Pushing a `v*` tag runs the
+release workflow, rebuilds the wheel and clean plugin bundle, generates SHA-256
+checksums, and creates a GitHub release only after tests pass.
 
-## Integrated Workflows
-
-### Grounded Search
-
-Use `google_grounded_search` for current facts, source-backed answers, official
-source checks, and verification-heavy questions. It uses Gemini native
-`google_search` grounding through Antigravity.
-
-For verification-heavy answers, prefer `sources[].resolved_url` and
-`evidence[].source_urls` over raw text alone. If
-`quality_signals.needs_manual_source_check` is true, treat the answer as thin
-evidence.
-
-When Google grounding returns temporary redirect URLs, the resolver follows
-them and falls back to a direct-source retry when a redirect expires or returns
-an error. Set `direct_source_retry` to `false` only when you need the raw
-grounding redirect behavior.
-
-### Model Routing
-
-Use `google_antigravity_route_model` before calls where task fit matters. It
-returns a recommended model, candidate fallback list, target MCP tool, and an
-arguments template for tasks such as `chat`, `code`, `grounded-search`,
-`writing`, `release`, and `image`.
-
-### Long Requests
-
-Chat, grounded search, writing, and image generation accept `retry_count` and
-`retry_sleep_cap_sec`. Keep retries low for interactive use; increase them only
-when the user is willing to wait through transient capacity or rate-limit
-errors.
-
-### Writing
-
-Use `google_antigravity_write` for drafting, rewriting, polishing, translation,
-summaries, README/docs prose, PR descriptions, release notes, emails, blog
-posts, proposals, and product copy.
-
-Example:
-
-```bash
-python3 scripts/google_antigravity_write.py \
-  --task polish \
-  --profile chanwoo-ko \
-  --source-text "Text to improve"
-```
-
-### Release Drafting
-
-Use `google_antigravity_release_snapshot` to collect local git release context
-and `google_antigravity_release_draft` to create PR descriptions, release notes,
-and changelog entry drafts.
-
-Example:
-
-```bash
-python3 scripts/google_antigravity_release.py draft \
-  --repo . \
-  --check-command "git diff --check" \
-  --polish
-```
-
-The release helper does not create tags, push tags, or publish GitHub releases.
-Codex must do those only after explicit user approval.
-
-## Environment
-
-- `GOOGLE_ANTIGRAVITY_CLIENT_ID`
-- `GOOGLE_ANTIGRAVITY_CLIENT_SECRET`
-- `GOOGLE_ANTIGRAVITY_CREDENTIALS_FILE`
-- `GOOGLE_ANTIGRAVITY_PROJECT_ID`
-- `GOOGLE_ANTIGRAVITY_GROUNDING=auto|always|off`
-- `GOOGLE_ANTIGRAVITY_IMAGE_MODEL`
-- `GOOGLE_ANTIGRAVITY_WRITING_MODEL`
-- `GOOGLE_ANTIGRAVITY_OFFICIAL_DOMAINS`
-
-## Development
-
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[dev]'
-.venv/bin/python -m pytest -q
-python3 scripts/google_antigravity_mcp.py
-```
-
-The test suite uses mocked network calls. Live chat, search, image, model, and
-quota smoke checks require valid OAuth credentials.
+This project is independent and is not affiliated with or endorsed by Google.
+Antigravity and Google are trademarks of Google LLC.

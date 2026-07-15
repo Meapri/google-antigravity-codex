@@ -10,7 +10,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import urllib.request
 import uuid
 
-from . import auth, client, paths, response
+from . import auth, client, network, paths, response
 
 DEFAULT_MODEL = "gemini-3.1-flash-image"
 DEFAULT_ASPECT_RATIO = "landscape"
@@ -19,7 +19,7 @@ MODELS: Dict[str, Dict[str, Any]] = {
     "gemini-3.1-flash-image": {
         "display": "Nano Banana (Gemini 3.1 Flash Image)",
         "speed": "~8-20s",
-        "strengths": "Antigravity OAuth image generation",
+        "strengths": "Legacy experimental direct image generation",
     },
     "gemini-2.5-flash-image": {
         "display": "Gemini 2.5 Flash Image",
@@ -190,16 +190,30 @@ def strip_data_url(value: str) -> Tuple[str, str]:
 
 def save_b64_image(value: str, *, prefix: str, extension: str) -> Path:
     data, ext = strip_data_url(value)
+    limit = network.max_download_bytes()
+    if len(data) > ((limit + 2) // 3) * 4 + 4:
+        raise ValueError(f"image exceeds the {limit}-byte size limit")
+    try:
+        decoded = base64.b64decode(data, validate=True)
+    except ValueError as exc:
+        raise ValueError("image payload is not valid base64") from exc
+    if len(decoded) > limit:
+        raise ValueError(f"image exceeds the {limit}-byte size limit")
     path = _cache_file(prefix, ext or extension or "png")
-    path.write_bytes(base64.b64decode(data))
+    path.write_bytes(decoded)
     return path
 
 
 def save_url_image(url: str, *, prefix: str) -> Path:
-    with urllib.request.urlopen(url, timeout=60.0) as response:
-        data = response.read()
+    network.validate_public_url(url)
+    request = urllib.request.Request(url, headers={"User-Agent": "google-antigravity-codex"})
+    with network.public_url_opener().open(request, timeout=60.0) as response:
+        network.validate_public_url(response.geturl())
         content_type = (response.headers.get("Content-Type") or "").split(";", 1)[0].lower()
-    ext = MIME_EXTENSIONS.get(content_type, "png")
+        if content_type not in MIME_EXTENSIONS:
+            raise ValueError(f"downloaded content type is not a supported image: {content_type or 'missing'}")
+        data = network.read_limited(response, network.max_download_bytes())
+    ext = MIME_EXTENSIONS[content_type]
     path = _cache_file(prefix, ext)
     path.write_bytes(data)
     return path

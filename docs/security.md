@@ -1,51 +1,52 @@
-# Security
+# Runtime security boundaries
 
-Google Antigravity Codex is a local Codex plugin with its own OAuth credential
-storage, MCP server, and Antigravity request path.
+## Supported trust model
 
-## Credentials
+The supported distribution target is a native `agy` plugin. It owns no
+Antigravity authentication. The optional Codex-to-`agy` chat bridge never reads
+the keyring itself, but is disabled by default because Google's current terms
+restrict third-party access using Antigravity login.
 
-Default credential files:
+The direct Code Assist/OAuth modules are legacy compatibility code. They target
+non-public endpoints, are disabled by default, and must not be treated as a
+stable or supported API.
 
-```text
-~/.config/google-antigravity-codex/credentials.json
-~/.config/google-antigravity-codex/oauth_client.json
-```
+## Local access
 
-Both files should be treated as secrets. The plugin writes credentials with
-`0600` file permissions and avoids returning token values through MCP tools.
+MCP clients are untrusted callers. `source_file`, `project_root`, release
+`repo`, and CLI `cwd` are constrained to the current directory plus
+`GOOGLE_ANTIGRAVITY_ALLOWED_ROOTS`. Symlinks are resolved before the boundary
+check. Known credential and secret paths are denied after resolution.
 
-Configure the OAuth client with either:
+Source files default to a 1 MiB limit. Git context is redacted and truncated.
+Release check commands are absent from MCP schemas; an explicitly opted-in
+library caller runs tokenized arguments without a shell.
 
-```text
-GOOGLE_ANTIGRAVITY_CLIENT_ID
-GOOGLE_ANTIGRAVITY_CLIENT_SECRET
-```
+## CLI recursion and mutation
 
-or an `oauth_client.json` file:
+The child process receives `GOOGLE_ANTIGRAVITY_CLI_BRIDGE_DEPTH=1`. Another
+bridge call at that depth is rejected. The Antigravity plugin manifest also
+disables the two CLI-bridge tools inside `agy`.
 
-```json
-{
-  "client_id": "your-client-id.apps.googleusercontent.com",
-  "client_secret": "your-client-secret"
-}
-```
+CLI calls default to plan mode and sandboxing. Mutating `accept-edits` mode
+requires an explicit local environment opt-in.
 
-## Network Behavior
+## Network and image handling
 
-Requests go to Google OAuth and Antigravity/Code Assist endpoints.
+Generated-image URLs require HTTPS and resolve only to globally routable
+addresses. Redirect targets are revalidated, proxy environment variables are
+ignored, MIME type is restricted to PNG/JPEG/WebP, and both Content-Length and
+streamed bytes are bounded. Inline base64 is validated and bounded before a
+cache file is written.
 
-## Integrated Helpers
+DNS rebinding between validation and connection is reduced but cannot be fully
+eliminated with Python's standard URL stack. Keep URL-image handling disabled
+in hostile multi-tenant environments.
 
-The writing helper sends only the prompt, optional source text, optional local
-project context, and style instructions to Antigravity.
+## Data exposure
 
-The release helper reads local git metadata, version files, and optional check
-command output from the requested repository. It drafts release artifacts only;
-it does not create tags, push tags, or publish GitHub releases.
-
-## Reporting Issues
-
-Include command names, sanitized errors, model IDs, and whether auth is present.
-Never include raw credential files, OAuth tokens, refresh tokens, client
-secrets, cookies, or authorization headers.
+Prompts, selected source text, and requested Git metadata are sent to the chosen
+model backend. `agy --print` places the prompt in the child process argument
+list, which can be visible to same-user process inspection on some systems.
+Never submit passwords, API keys, OAuth codes, tokens, cookies, or raw
+credential files.

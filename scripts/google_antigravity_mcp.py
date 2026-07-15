@@ -10,9 +10,8 @@ PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
-from google_antigravity_codex.mcp_server import serve
+from google_antigravity_codex.mcp_server import serve  # noqa: E402
 
 
 if __name__ == "__main__":
     raise SystemExit(serve())
-

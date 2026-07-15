@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import base64
 import os
+import socket
 from unittest.mock import patch
+
+import pytest
 
 from google_antigravity_codex import chat, grounding, image
 
@@ -171,3 +174,19 @@ def test_generate_image_exposes_path_alias_and_metadata(tmp_path):
     assert result["mime_type"] == "image/png"
     assert result["size_bytes"] > 0
     assert result["backend"] == "direct-antigravity-code-assist"
+
+
+def test_save_b64_image_rejects_oversized_payload(monkeypatch):
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_MAX_IMAGE_BYTES", "8")
+    with pytest.raises(ValueError, match="size limit"):
+        image.save_b64_image(b64_png(), prefix="test", extension="png")
+
+
+def test_save_url_image_blocks_private_network(monkeypatch):
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443))],
+    )
+    with pytest.raises(ValueError, match="private"):
+        image.save_url_image("https://example.test/image.png", prefix="test")

@@ -1,7 +1,7 @@
 {
   "name": "google-antigravity-codex",
-  "version": "0.4.0+codex.20260605185719",
-  "description": "Independent Codex plugin and MCP tools for Google Antigravity OAuth, chat, grounded search, writing, release drafting, image generation, model routing, and quota status.",
+  "version": "0.5.0",
+  "description": "Codex skills and MCP tools centered on the official Google Antigravity CLI, with an opt-in experimental legacy backend.",
   "author": {
     "name": "Park Chanwoo",
     "url": "https://github.com/Meapri"
@@ -14,42 +14,39 @@
     "antigravity",
     "codex",
     "mcp",
-    "oauth",
-    "grounding",
-    "image-generation"
+    "security",
+    "release-tools",
+    "diagnostics"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Google Antigravity Codex",
-    "shortDescription": "Use Google Antigravity directly from Codex.",
-    "longDescription": "Google Antigravity Codex provides an independent Codex plugin plus MCP stdio server for Antigravity OAuth, chat, native Google Search grounding with evidence, writing, release drafting, image generation, model listing, model routing, retry diagnostics, and quota status. It includes Codex-facing skills for coding, code review, model routing, doctor checks, image generation, grounded search, writing, and releases.",
+    "shortDescription": "Native Antigravity plugin and guarded local helpers.",
+    "longDescription": "Google Antigravity Codex provides Codex skills and an MCP stdio server centered on the official agy CLI, plus guarded local writing and release helpers. Legacy direct Code Assist tools are disabled unless explicitly enabled for isolated compatibility testing.",
     "developerName": "Park Chanwoo",
     "category": "Developer Tools",
     "capabilities": [
-      "Antigravity OAuth",
-      "Chat",
+      "Native agy CLI 1.1.x plugin",
+      "Guarded optional CLI diagnostics",
+      "Antigravity CLI doctor",
       "Coding assistance",
       "Code review",
-      "Google grounded search",
       "Writing",
       "Release drafting",
-      "Image generation",
       "Model listing",
       "Model routing",
       "Doctor checks",
-      "Retry diagnostics",
-      "Quota status",
+      "Security boundaries",
       "MCP"
     ],
     "defaultPrompt": [
-      "Check Google Antigravity auth status.",
-      "Use Google-grounded search for this current fact.",
-      "Polish this prose with Antigravity.",
+      "Check the native Antigravity plugin bundle.",
+      "Verify this plugin's security defaults.",
+      "Polish this prose using the host model.",
       "Draft release notes from the current repo.",
-      "Generate an image through Google Antigravity.",
       "List available Antigravity models.",
       "Route this task to the best Antigravity model.",
-      "Review this code with Antigravity as a second reviewer.",
+      "Review this code using the host model.",
       "Run an Antigravity plugin doctor check."
     ]
   },

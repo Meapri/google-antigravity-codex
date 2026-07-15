@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import os
 from unittest.mock import patch
+
+import pytest
 
 from google_antigravity_codex import client
 
@@ -29,12 +30,18 @@ def test_wrap_request_uses_antigravity_agent_shape():
     assert wrapped["request"] == {"contents": []}
 
 
-def test_antigravity_headers_can_be_version_overridden():
-    with patch.dict(os.environ, {"GOOGLE_ANTIGRAVITY_VERSION": "2.0.9"}):
-        headers = client.antigravity_headers()
+def test_direct_headers_identify_this_plugin_instead_of_impersonating_cli():
+    headers = client.antigravity_headers()
 
-    assert "Antigravity/2.0.9" in headers["User-Agent"]
-    assert headers["X-Goog-Api-Client"] == "antigravity-cli/2.0.9"
+    assert headers["User-Agent"].startswith("google-antigravity-codex/")
+    assert headers["X-Goog-Api-Client"].startswith("google-antigravity-codex/")
+
+
+def test_post_json_blocks_direct_backend_without_opt_in(monkeypatch):
+    monkeypatch.delenv("GOOGLE_ANTIGRAVITY_ENABLE_DIRECT_BACKEND", raising=False)
+    with pytest.raises(client.AntigravityError) as error:
+        client.post_json("https://example.test", {}, {})
+    assert error.value.code == "direct_backend_disabled"
 
 
 def test_load_code_assist_uses_google_code_assist_metadata():

@@ -3,6 +3,8 @@ from __future__ import annotations
 import subprocess
 from unittest.mock import patch
 
+import pytest
+
 from google_antigravity_codex import release, writing
 
 
@@ -31,7 +33,8 @@ def test_writing_routes_to_antigravity_chat():
     assert "rough text" in seen["prompt"]
 
 
-def test_release_snapshot_and_draft_from_git_repo(tmp_path):
+def test_release_snapshot_and_draft_from_git_repo(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_ALLOWED_ROOTS", str(tmp_path))
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
@@ -53,3 +56,33 @@ def test_release_snapshot_and_draft_from_git_repo(tmp_path):
     assert "README.md" in snapshot["changed_files"]
     assert "Release Copilot Draft" in draft_result["text"]
     assert "v1.2.4" in draft_result["text"]
+
+
+def test_writing_blocks_sensitive_and_outside_source_files(tmp_path, monkeypatch):
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    secret = allowed / ".env"
+    secret.write_text("API_KEY=secret\n", encoding="utf-8")
+    outside = tmp_path / "outside.txt"
+    outside.write_text("private\n", encoding="utf-8")
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_ALLOWED_ROOTS", str(allowed))
+
+    with pytest.raises(ValueError, match="sensitive"):
+        writing.read_source({"source_file": str(secret)})
+    with pytest.raises(ValueError, match="allowed roots"):
+        writing.read_source({"source_file": str(outside)})
+
+
+def test_release_check_commands_are_disabled_by_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_ALLOWED_ROOTS", str(tmp_path))
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+
+    with pytest.raises(ValueError, match="disabled"):
+        release.collect_snapshot({"repo": str(tmp_path), "check_commands": ["echo unsafe"]})
+
+
+def test_remote_url_strips_embedded_credentials():
+    assert (
+        release.normalize_remote_url("https://user:secret@example.com/owner/repo.git?token=x")
+        == "https://example.com/owner/repo"
+    )

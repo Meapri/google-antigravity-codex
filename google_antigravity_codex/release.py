@@ -7,11 +7,13 @@ from datetime import date
 import json
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import time
 from typing import Any, Dict, List
+import urllib.parse
 
-from . import response, writing
+from . import response, security, writing
 
 VERSION_FILE_PATTERNS = (
     ("package.json", re.compile(r'"version"\s*:\s*"([^"]+)"')),
@@ -93,6 +95,7 @@ def _git(repo: Path, args: List[str], *, timeout_sec: int = 30) -> str:
 
 
 def repo_root(path: Path) -> Path:
+    path = security.resolve_allowed_path(path, purpose="release repo", directory=True)
     proc = _run(path, ["git", "rev-parse", "--show-toplevel"])
     if proc.returncode != 0:
         raise ValueError(f"not a git repository: {path}")
@@ -107,6 +110,12 @@ def normalize_remote_url(remote: str) -> str:
         return remote.removesuffix(".git")
     if remote.startswith("http://github.com/"):
         return "https://" + remote.removeprefix("http://").removesuffix(".git")
+    parsed = urllib.parse.urlsplit(remote)
+    if parsed.scheme and parsed.hostname:
+        host = parsed.hostname
+        if parsed.port:
+            host += f":{parsed.port}"
+        return urllib.parse.urlunsplit((parsed.scheme, host, parsed.path, "", "")).removesuffix(".git")
     return remote
 
 
@@ -228,11 +237,20 @@ def bump_version(version: str, bump: str) -> str:
 
 
 def run_check(repo: Path, command: str, timeout_sec: int) -> CommandResult:
+    if not security.env_flag("GOOGLE_ANTIGRAVITY_ALLOW_CHECK_COMMANDS"):
+        raise ValueError(
+            "release check_commands are disabled; run checks outside MCP or explicitly opt in locally"
+        )
+    argv = shlex.split(command)
+    if not argv:
+        raise ValueError("release check command cannot be empty")
+    if len(command) > 4096:
+        raise ValueError("release check command exceeds the 4096-character limit")
+    timeout_sec = max(1, min(int(timeout_sec), 3600))
     started = time.monotonic()
     proc = subprocess.run(
-        command,
+        argv,
         cwd=str(repo),
-        shell=True,
         text=True,
         capture_output=True,
         timeout=timeout_sec,
@@ -268,6 +286,8 @@ def collect_snapshot(arguments: Dict[str, Any]) -> ReleaseSnapshot:
     check_commands = arguments.get("check_commands") or arguments.get("checks") or []
     if isinstance(check_commands, str):
         check_commands = [check_commands] if check_commands.strip() else []
+    if len(check_commands) > 10:
+        raise ValueError("at most 10 release check commands are allowed")
     checks = [
         run_check(repo, str(command), int(arguments.get("check_timeout_sec") or 600))
         for command in check_commands

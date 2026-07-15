@@ -1,11 +1,11 @@
 # Notice
 
-This plugin includes a small, independent implementation of request and response
-shapes used by Google's Antigravity / Code Assist endpoints.
+This plugin includes an independent implementation of request and response
+shapes used by Google's Antigravity / Code Assist endpoints. That legacy path
+is experimental and disabled by default; the official `agy` CLI is primary.
 
-Some translation and quota parsing ideas are adapted from the MIT-licensed
-Hermes Agent project and the local Hermes Google Antigravity provider work.
-Only the pieces needed for a Codex MCP plugin are reproduced here; Hermes
-runtime patching, repair hooks, service restart logic, and installed-tree drift
-checks are intentionally excluded.
-
+Architecture and quota-parsing ideas were informed by the MIT-licensed
+[NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) and
+the upstream `Meapri/google-antigravity-codex` history. No Hermes source tree,
+runtime patch, repair hook, service restart logic, or installed-tree drift
+checker is vendored in the release bundle.

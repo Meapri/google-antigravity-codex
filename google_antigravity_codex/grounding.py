@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
 import urllib.parse
 import urllib.request
 from typing import Any, Dict, List
 
-from . import chat, response as response_schema
+from . import chat, network, response as response_schema
 
 URL_RE = re.compile(r"https?://[^\s)>\]}\"']+")
 TRAILING_URL_CHARS = ".,;:*!?_~`"
@@ -85,15 +84,14 @@ def resolve_url(url: str, *, timeout_sec: int = 8) -> Dict[str, Any]:
     if "vertexaisearch.cloud.google.com" not in parsed.netloc.lower():
         return source
     try:
+        network.validate_public_url(url)
         request = urllib.request.Request(url, headers={"User-Agent": "google-antigravity-codex/0.1.0"})
-        with urllib.request.urlopen(request, timeout=max(1, timeout_sec)) as response:
+        with network.public_url_opener().open(request, timeout=max(1, timeout_sec)) as response:
             final_url = response.geturl()
+        network.validate_public_url(final_url)
     except Exception as exc:
-        curl_url = resolve_url_with_curl(url, timeout_sec=timeout_sec)
-        if not curl_url:
-            source["resolution_error"] = str(exc)
-            return source
-        final_url = curl_url
+        source["resolution_error"] = str(exc)
+        return source
     final = urllib.parse.urlparse(final_url)
     source.update(
         {
@@ -108,30 +106,8 @@ def resolve_url(url: str, *, timeout_sec: int = 8) -> Dict[str, Any]:
 
 
 def resolve_url_with_curl(url: str, *, timeout_sec: int = 8) -> str:
-    try:
-        proc = subprocess.run(
-            [
-                "curl",
-                "-Ls",
-                "-o",
-                "/dev/null",
-                "-w",
-                "%{url_effective}",
-                "--max-time",
-                str(max(1, int(timeout_sec))),
-                url,
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=max(2, int(timeout_sec) + 1),
-        )
-    except (OSError, subprocess.SubprocessError):
-        return ""
-    final_url = (proc.stdout or "").strip()
-    if proc.returncode != 0 or not final_url.startswith(("http://", "https://")):
-        return ""
-    return final_url
+    """Retained for API compatibility; unsafe curl redirect following is disabled."""
+    return ""
 
 
 def extract_numeric_claims(text: str) -> List[str]:

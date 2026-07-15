@@ -12,7 +12,7 @@ import re
 import subprocess
 from typing import Any, Dict, List
 
-from . import chat, response as response_schema
+from . import chat, response as response_schema, security
 
 DEFAULT_MODEL = "gemini-3.1-pro-high"
 TASKS = {
@@ -183,7 +183,17 @@ def read_source(arguments: Dict[str, Any]) -> str:
         chunks.append(text)
     source_file = str(arguments.get("source_file") or "").strip()
     if source_file:
-        path = Path(source_file).expanduser()
+        path = security.resolve_allowed_path(
+            source_file, purpose="source_file", directory=False
+        )
+        max_bytes = security.bounded_int_env(
+            "GOOGLE_ANTIGRAVITY_MAX_SOURCE_BYTES",
+            1024 * 1024,
+            minimum=1,
+            maximum=10 * 1024 * 1024,
+        )
+        if path.stat().st_size > max_bytes:
+            raise ValueError(f"source_file exceeds the {max_bytes}-byte size limit: {path}")
         chunks.append(path.read_text(encoding="utf-8"))
     return "\n\n".join(chunk for chunk in chunks if chunk)
 
@@ -194,10 +204,13 @@ def collect_project_context(arguments: Dict[str, Any], task: str) -> str:
         requested = "git-diff" if task in {"pr-description", "release-notes"} else "git-summary"
     if requested not in {"git-summary", "git-diff"}:
         return ""
-    root = _git_root(Path(str(arguments.get("project_root") or ".")).expanduser())
+    requested_root = security.resolve_allowed_path(
+        str(arguments.get("project_root") or "."), purpose="project_root", directory=True
+    )
+    root = _git_root(requested_root)
     if root is None:
         return ""
-    max_chars = int(arguments.get("max_project_context_chars") or 8000)
+    max_chars = max(1000, min(int(arguments.get("max_project_context_chars") or 8000), 50000))
     sections = [
         f"Repository: {root}",
         f"Branch: {_run_git(root, ['branch', '--show-current']) or '[detached]'}",
@@ -209,7 +222,7 @@ def collect_project_context(arguments: Dict[str, Any], task: str) -> str:
     if requested == "git-diff":
         sections.append("Diff:\n" + (_run_git(root, ["diff", "--", "."], timeout_sec=30) or "[none]"))
     context = "\n\n".join(sections)
-    return context[: max(1000, max_chars)]
+    return context[:max_chars]
 
 
 def build_prompt(arguments: Dict[str, Any]) -> Dict[str, Any]:
