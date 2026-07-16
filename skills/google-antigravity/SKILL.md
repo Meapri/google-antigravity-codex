@@ -55,7 +55,9 @@ Never print tokens, client secrets, or raw pending OAuth state.
 - `google_antigravity_provider_status` before uncertain model calls.
 - `google_antigravity_chat` — text, multimodal **data:** images, tool-calls, optional `stream: true`.
 - `google_grounded_search` / `google_antigravity_generate_image` — require **`agy-oauth`**.
-- `google_antigravity_write`, release snapshot/draft, list/route models, quota.
+- `google_antigravity_write` — prose; **readme/technical-doc** are durable
+  (fact pack, no git diary). Multi-step README → orchestrate-codex `durable_readme`.
+- release snapshot/draft, list/route models, quota.
 
 ### Chat notes
 

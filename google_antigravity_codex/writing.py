@@ -2,6 +2,14 @@
 
 This module absorbs the useful routing and prompt-building surface from the
 old Gemini Writing Copilot while using this plugin's Antigravity chat path.
+
+Doc-class split (aligned with orchestrate-codex, no hard dependency):
+- **durable** (readme, technical-doc): 1-shot leaf — fact pack on, git diary off.
+- **change** (pr-description, release-notes): git context allowed via auto.
+- **transform** (polish, translate, …): source-first, git off by default.
+
+Multi-step outline→draft→verify still belongs in orchestrate-codex
+``durable_readme``; this leaf enforces durable *safety* when called directly.
 """
 
 from __future__ import annotations
@@ -12,7 +20,7 @@ import re
 import subprocess
 from typing import Any, Dict, List
 
-from . import chat, model_prefs, response as response_schema, security
+from . import chat, doc_facts, model_prefs, response as response_schema, security
 
 DEFAULT_MODEL = "gemini-3.1-pro-preview"
 TASKS = {
@@ -87,12 +95,29 @@ TASK_GUIDANCE = {
     "blog": "Write an engaging, readable post with clear headings.",
     "pr-description": "Summarize the code changes, motivation, and validation.",
     "release-notes": "Group changes into concise release-note sections.",
-    "readme": "Write practical documentation with setup, usage, and configuration.",
+    "readme": (
+        "Write practical product documentation with setup, usage, and configuration. "
+        "Use only the durable fact pack and provided source. Never describe session "
+        "work, 'today we fixed', git logs, or debug notes as product features. "
+        "Do not invent MCP tools, env vars, or install commands."
+    ),
     "proposal": "Explain the problem, solution, benefits, and next steps.",
     "product-copy": "Highlight user benefit in active, direct language.",
-    "technical-doc": "Explain technical concepts precisely with clear structure.",
+    "technical-doc": (
+        "Explain technical concepts with clear structure. Ground claims in the "
+        "durable fact pack and source. No session diary or recent-commit tone."
+    ),
     "custom": "Follow the user's explicit instruction exactly.",
 }
+
+# Leaf durable class — mirrors orchestrate-codex durable (not multi-step).
+DURABLE_TASKS = frozenset({"readme", "technical-doc"})
+CHANGE_TASKS = frozenset({"pr-description", "release-notes"})
+
+RECENCY_RE = re.compile(
+    r"(?i)\b(today we|just fixed|recently fixed|this session|session diary|"
+    r"HTTP 400|방금 수정|오늘 고친|최근 작업)\b"
+)
 
 SECRET_RE = re.compile(
     r"(?i)(authorization|bearer|token|refresh_token|access_token|client_secret|cookie|api[_-]?key)"
@@ -202,10 +227,33 @@ def read_source(arguments: Dict[str, Any]) -> str:
     return "\n\n".join(chunk for chunk in chunks if chunk)
 
 
-def collect_project_context(arguments: Dict[str, Any], task: str) -> str:
+def is_durable_task(task: str) -> bool:
+    return task in DURABLE_TASKS
+
+
+def resolve_project_context_mode(arguments: Dict[str, Any], task: str) -> str:
+    """Resolve git context mode with durable safety.
+
+    Durable tasks never pull git diary (even if caller passes auto/git-*).
+    Change tasks default auto → git-diff / git-summary.
+    """
     requested = str(arguments.get("project_context") or "off").strip().lower()
+    if is_durable_task(task):
+        # Explicit override only if force_git_context=true (escape hatch for rare cases).
+        if arguments.get("force_git_context") is True and requested in {"git-summary", "git-diff"}:
+            return requested
+        return "off"
     if requested == "auto":
-        requested = "git-diff" if task in {"pr-description", "release-notes"} else "git-summary"
+        if task in CHANGE_TASKS:
+            return "git-diff" if task == "pr-description" else "git-summary"
+        return "off"
+    if requested in {"git-summary", "git-diff", "off"}:
+        return requested
+    return "off"
+
+
+def collect_project_context(arguments: Dict[str, Any], task: str) -> str:
+    requested = resolve_project_context_mode(arguments, task)
     if requested not in {"git-summary", "git-diff"}:
         return ""
     requested_root = security.resolve_allowed_path(
@@ -232,11 +280,27 @@ def collect_project_context(arguments: Dict[str, Any], task: str) -> str:
     return context[:max_chars]
 
 
+def collect_durable_context(arguments: Dict[str, Any], task: str) -> Dict[str, Any]:
+    """Fact pack for durable leaf writes. Disabled when fact_pack=false."""
+    if not is_durable_task(task):
+        return {"used": False, "text": ""}
+    if arguments.get("fact_pack") is False:
+        return {"used": False, "text": "", "skipped": True}
+    root = str(arguments.get("project_root") or arguments.get("workspace_root") or ".").strip() or "."
+    try:
+        facts = doc_facts.collect_durable_facts(root)
+    except Exception as exc:  # noqa: BLE001
+        return {"used": False, "text": "", "error": str(exc)}
+    return {"used": True, "text": str(facts.get("text") or ""), "facts": facts}
+
+
 def build_prompt(arguments: Dict[str, Any]) -> Dict[str, Any]:
     source_text = read_source(arguments)
     task = infer_task(arguments, source_text)
     profiles = _profile_names(arguments.get("profile"), task)
+    durable = is_durable_task(task)
     project_context = collect_project_context(arguments, task)
+    durable_ctx = collect_durable_context(arguments, task)
     instruction = str(arguments.get("instruction") or "").strip()
     context = str(arguments.get("context") or "").strip()
     tone = str(arguments.get("tone") or "").strip()
@@ -244,8 +308,18 @@ def build_prompt(arguments: Dict[str, Any]) -> Dict[str, Any]:
     target_language = str(arguments.get("target_language") or "").strip()
     length = str(arguments.get("length") or "").strip()
     output_mode = str(arguments.get("output_mode") or "final").strip()
-    if not any([instruction, source_text, context, project_context]):
-        raise ValueError("instruction, source_text, source_file, context, or project_context is required")
+    if not any(
+        [
+            instruction,
+            source_text,
+            context,
+            project_context,
+            durable_ctx.get("text"),
+        ]
+    ):
+        raise ValueError(
+            "instruction, source_text, source_file, context, project_context, or durable fact pack is required"
+        )
 
     system = (
         "You are the writing arm of Google Antigravity Codex. Return only the "
@@ -254,8 +328,16 @@ def build_prompt(arguments: Dict[str, Any]) -> Dict[str, Any]:
         "links, issue IDs, or compatibility claims. If evidence is missing, use a "
         "clear placeholder instead of guessing."
     )
+    if durable:
+        system += (
+            " This is a durable product document: use the fact pack and provided source only. "
+            "Never turn session work, recent commits, or debug notes into product claims. "
+            "For multi-step README pipelines (outline→draft→verify), prefer orchestrate-codex "
+            "durable_readme; this path is a single durable-safe pass."
+        )
     parts = [
         f"Task: {task}",
+        f"Doc class: {'durable' if durable else ('change' if task in CHANGE_TASKS else 'transform')}",
         f"Task guidance: {TASK_GUIDANCE.get(task, TASK_GUIDANCE['custom'])}",
         f"Output mode: {output_mode}",
         profile_text(profiles),
@@ -271,7 +353,11 @@ def build_prompt(arguments: Dict[str, Any]) -> Dict[str, Any]:
     if length:
         parts.append(f"Length:\n{length}")
     if context:
-        parts.append(f"Additional context:\n{context}")
+        # For durable, still allow explicit context but label it carefully
+        label = "Additional context (do not treat as session diary if durable)" if durable else "Additional context"
+        parts.append(f"{label}:\n{context}")
+    if durable_ctx.get("text"):
+        parts.append(f"Durable fact pack:\n{redact(durable_ctx['text'])}")
     if project_context:
         parts.append(f"Project context:\n{redact(project_context)}")
     if source_text:
@@ -282,15 +368,22 @@ def build_prompt(arguments: Dict[str, Any]) -> Dict[str, Any]:
         "system": system,
         "prompt": "\n\n".join(parts),
         "project_context_used": bool(project_context),
+        "durable": durable,
+        "fact_pack_used": bool(durable_ctx.get("used")),
+        "doc_class": "durable" if durable else ("change" if task in CHANGE_TASKS else "transform"),
     }
 
 
-def review_text(text: str) -> List[str]:
+def review_text(text: str, *, durable: bool = False) -> List[str]:
     warnings: List[str] = []
     if "[TODO" in text or "[todo" in text:
         warnings.append("output_contains_todo_placeholder")
     if "As an AI" in text:
         warnings.append("output_contains_model_meta_commentary")
+    if durable and RECENCY_RE.search(text or ""):
+        warnings.append("durable_output_contains_recency_language")
+    if durable and re.search(r"\b(git log|diff --stat|HEAD~)\b", text or "", re.I):
+        warnings.append("durable_output_contains_git_internals")
     return warnings
 
 
@@ -315,19 +408,31 @@ def run_writing(arguments: Dict[str, Any]) -> Dict[str, Any]:
         }
     )
     text = str(chat_response.get("text") or "").strip()
+    warnings = review_text(text, durable=bool(built.get("durable")))
+    diagnostics = dict(chat_response.get("diagnostics") or {})
+    diagnostics.update(
+        {
+            "doc_class": built.get("doc_class"),
+            "durable": built.get("durable"),
+            "fact_pack_used": built.get("fact_pack_used"),
+            "project_context_used": built.get("project_context_used"),
+        }
+    )
     return {
         "text": text,
         "task": built["task"],
         "profiles": built["profiles"],
         "model": model,
+        "doc_class": built.get("doc_class"),
         "project_context_used": built["project_context_used"],
-        "quality_warnings": review_text(text),
+        "fact_pack_used": built.get("fact_pack_used"),
+        "quality_warnings": warnings,
         "usage": chat_response.get("usage", {}),
         **response_schema.standard_fields(
             model=model,
             usage=chat_response.get("usage", {}),
-            warnings=review_text(text),
-            diagnostics=chat_response.get("diagnostics", {}),
+            warnings=warnings,
+            diagnostics=diagnostics,
             backend=str(chat_response.get("backend") or "agy-session"),
         ),
     }

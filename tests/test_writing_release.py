@@ -33,6 +33,42 @@ def test_writing_routes_to_antigravity_chat():
     assert "rough text" in seen["prompt"]
 
 
+def test_durable_readme_forces_git_off_and_injects_fact_pack(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOOGLE_ANTIGRAVITY_ALLOWED_ROOTS", str(tmp_path))
+    (tmp_path / "pyproject.toml").write_text('version = "7.7.7"\n', encoding="utf-8")
+    (tmp_path / "skills").mkdir()
+    (tmp_path / "skills" / "demo").mkdir()
+    seen = {}
+
+    def fake_run_chat(arguments):
+        seen.update(arguments)
+        return {"text": "# Product\nSetup and usage.", "usage": {"total_tokens": 2}}
+
+    with patch.object(writing.chat, "run_chat", fake_run_chat):
+        result = writing.run_writing(
+            {
+                "task": "readme",
+                "instruction": "Write a short README",
+                "project_root": str(tmp_path),
+                "project_context": "git-summary",
+                "model": "gemini-3.1-pro-preview",
+            }
+        )
+
+    assert result["doc_class"] == "durable"
+    assert result["fact_pack_used"] is True
+    assert result["project_context_used"] is False
+    assert "DURABLE FACT PACK" in seen["prompt"]
+    assert "7.7.7" in seen["prompt"]
+    assert "Recent commits" not in seen["prompt"]
+    assert "durable" in seen["system"].lower()
+
+
+def test_durable_review_flags_recency():
+    warnings = writing.review_text("today we fixed HTTP 400 in this session", durable=True)
+    assert "durable_output_contains_recency_language" in warnings
+
+
 def test_release_snapshot_and_draft_from_git_repo(tmp_path, monkeypatch):
     monkeypatch.setenv("GOOGLE_ANTIGRAVITY_ALLOWED_ROOTS", str(tmp_path))
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
